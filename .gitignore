@@ -1,0 +1,15 @@
+# Build
+build/
+CMakeCache.txt
+CMakeFiles/
+*.cmake
+!CMakeLists.txt
+
+# IDE / OS
+.idea/
+.vscode/
+*.user
+.DS_Store
+
+# Optional: uncomment if you generate curve data in-repo
+# output/
