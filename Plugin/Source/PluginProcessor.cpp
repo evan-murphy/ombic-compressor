@@ -51,6 +51,8 @@ const char* OmbicCompressorProcessor::paramNeonBurstiness    = "neon_burstiness"
 const char* OmbicCompressorProcessor::paramNeonGMin          = "neon_g_min";
 const char* OmbicCompressorProcessor::paramNeonSaturationAfter = "neon_saturation_after";
 const char* OmbicCompressorProcessor::paramOptoCompressLimit   = "opto_compress_limit";
+const char* OmbicCompressorProcessor::paramScFrequency        = "sc_frequency";
+const char* OmbicCompressorProcessor::paramScListen             = "sc_listen";
 
 //==============================================================================
 juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::createParameterLayout()
@@ -157,6 +159,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::cr
         juce::StringArray{ "Compress", "Limit" },
         0));
 
+    // Sidechain filter: 20–500 Hz, default 20 = OFF (bypass). Skew 0.35 for log-ish (more resolution 20–200).
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ paramScFrequency, 1 },
+        "SC Frequency",
+        juce::NormalisableRange<float>(20.0f, 500.0f, 1.0f, 0.35f),
+        20.0f,
+        juce::AudioParameterFloatAttributes().withLabel("Hz")));
+
+    layout.add(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{ paramScListen, 1 },
+        "SC Listen",
+        false));
+
     return layout;
 }
 
@@ -181,11 +196,26 @@ OmbicCompressorProcessor::OmbicCompressorProcessor()
 OmbicCompressorProcessor::~OmbicCompressorProcessor() = default;
 
 //==============================================================================
-void OmbicCompressorProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock*/)
+void OmbicCompressorProcessor::updateSidechainFilterCoeffs(float frequencyHz)
+{
+    if (sampleRateHz <= 0 || frequencyHz <= kScFilterOffHz)
+        return;
+    sidechainHpfCoeffs_ = juce::dsp::IIR::Coefficients<float>::makeHighPass(
+        sampleRateHz, frequencyHz, 0.7071f);  // Butterworth
+    if (sidechainHpfCoeffs_)
+        sidechainHpf_.coefficients = sidechainHpfCoeffs_;
+}
+
+void OmbicCompressorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     sampleRateHz = sampleRate;
     inputRms.reset(sampleRate, 0.05);
     outputRms.reset(sampleRate, 0.05);
+    smoothedScFrequency_.reset(sampleRate, 0.015);  // 15 ms ramp
+    smoothedScFrequency_.setCurrentAndTargetValue(kScFilterOffHz);
+    updateSidechainFilterCoeffs(100.0f);  // initial coeffs for when filter is used
+    sidechainMonoBuffer_.setSize(1, juce::jmax(512, samplesPerBlock));
+    sidechainStereoForListen_.setSize(2, juce::jmax(512, samplesPerBlock));
 }
 
 void OmbicCompressorProcessor::releaseResources()
@@ -193,6 +223,21 @@ void OmbicCompressorProcessor::releaseResources()
     fetChain_.reset();
     optoChain_.reset();
     standaloneNeon_.reset();
+}
+
+bool OmbicCompressorProcessor::isScListenActive() const
+{
+    auto* p = apvts.getParameter(paramScListen);
+    return p && p->getValue() > 0.5f;
+}
+
+bool OmbicCompressorProcessor::getScopeSidechainSamples(std::vector<float>& out) const
+{
+    const juce::ScopedLock sl(scopeSidechainLock_);
+    if (scopeSidechainBuffer_.empty())
+        return false;
+    out = scopeSidechainBuffer_;
+    return true;
 }
 
 juce::AudioProcessorEditor* OmbicCompressorProcessor::createEditor()
@@ -271,6 +316,33 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
 
     ensureChains();
 
+    // Sidechain filter: mono sum of input, optional HPF (bypass at 20 Hz)
+    const float scFreqParam = apvts.getRawParameterValue(paramScFrequency)->load();
+    const bool scListen = apvts.getRawParameterValue(paramScListen)->load() > 0.5f;
+    smoothedScFrequency_.setTargetValue(scFreqParam);
+    if (sidechainMonoBuffer_.getNumSamples() < numSamples)
+    {
+        sidechainMonoBuffer_.setSize(1, numSamples);
+        sidechainStereoForListen_.setSize(2, numSamples);
+    }
+    float* mono = sidechainMonoBuffer_.getWritePointer(0);
+    for (int i = 0; i < numSamples; ++i)
+    {
+        float sum = 0.0f;
+        for (int ch = 0; ch < numChannels; ++ch)
+            sum += buffer.getSample(ch, i);
+        mono[i] = sum / static_cast<float>(numChannels);
+    }
+    float currentScFreq = smoothedScFrequency_.getNextValue();
+    if (currentScFreq > kScFilterOffHz)
+    {
+        updateSidechainFilterCoeffs(currentScFreq);
+        for (int i = 0; i < numSamples; ++i)
+            mono[i] = sidechainHpf_.processSample(mono[i]);
+    }
+    for (int ch = 0; ch < 2; ++ch)
+        sidechainStereoForListen_.copyFrom(ch, 0, sidechainMonoBuffer_, 0, 0, numSamples);
+
     const bool neonOn = true; /* Neon always in path; use Mix for dry/wet (0 = dry). */
     const int mode = static_cast<int>(apvts.getRawParameterValue(paramCompressorMode)->load() + 0.5f);
     const float thresholdRaw = apvts.getRawParameterValue(paramThreshold)->load();
@@ -315,7 +387,8 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             neonIntensity,
             neonSatAfter);
         std::optional<bool> optoLimitMode = (mode == 0) ? std::optional<bool>(optoCompressLimitChoice == 1) : std::nullopt;  // Limit when dropdown = "Limit"
-        chain->process(buffer, threshold, ratioOpt, attackOpt, releaseOpt, 512, optoLimitMode);
+        const juce::AudioBuffer<float>* detectorBuffer = (currentScFreq > kScFilterOffHz) ? &sidechainMonoBuffer_ : nullptr;
+        chain->process(buffer, threshold, ratioOpt, attackOpt, releaseOpt, 512, optoLimitMode, detectorBuffer);
         gainReductionDb.store(chain->getLastGainReductionDb());
     }
     else
@@ -339,9 +412,27 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             standaloneNeon_.reset();
     }
 
-    // Output gain (after saturator and compressor). Positive = makeup, negative = trim.
-    float makeupGain = std::pow(10.0f, makeupDb / 20.0f);
-    buffer.applyGain(makeupGain);
+    // Output: Listen replaces with sidechain at unity; otherwise apply makeup.
+    if (scListen)
+    {
+        for (int ch = 0; ch < numChannels && ch < 2; ++ch)
+            buffer.copyFrom(ch, 0, sidechainStereoForListen_, ch, 0, numSamples);
+        // Copy sidechain for Neon scope (thread-safe for UI)
+        const juce::ScopedLock sl(scopeSidechainLock_);
+        scopeSidechainBuffer_.resize(static_cast<size_t>(numSamples));
+        const float* mono = sidechainMonoBuffer_.getReadPointer(0);
+        for (int i = 0; i < numSamples; ++i)
+            scopeSidechainBuffer_[static_cast<size_t>(i)] = mono[i];
+    }
+    else
+    {
+        {
+            const juce::ScopedLock sl(scopeSidechainLock_);
+            scopeSidechainBuffer_.clear();
+        }
+        float makeupGain = std::pow(10.0f, makeupDb / 20.0f);
+        buffer.applyGain(makeupGain);
+    }
 
     sumSq = 0.0f;
     for (int ch = 0; ch < numChannels; ++ch)
@@ -363,7 +454,12 @@ void OmbicCompressorProcessor::setStateInformation(const void* data, int sizeInB
 {
     auto tree = juce::ValueTree::readFromData(data, size_t(sizeInBytes));
     if (tree.isValid())
+    {
         apvts.replaceState(tree);
+        // Safety: never restore with SC Listen on — override to off
+        if (auto* p = apvts.getParameter(paramScListen))
+            p->setValueNotifyingHost(p->convertTo0to1(false));
+    }
 }
 
 //==============================================================================

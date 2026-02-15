@@ -1,9 +1,10 @@
 #include "SaturatorSection.h"
 #include "../PluginProcessor.h"
 #include "OmbicAssets.h"
+#include <vector>
 
-SaturatorSection::ScopeComponent::ScopeComponent(juce::Slider& drive, juce::Slider& intensity)
-    : driveSlider_(&drive), intensitySlider_(&intensity) {}
+SaturatorSection::ScopeComponent::ScopeComponent(OmbicCompressorProcessor& processor, juce::Slider& drive, juce::Slider& intensity)
+    : proc_(&processor), driveSlider_(&drive), intensitySlider_(&intensity) {}
 
 void SaturatorSection::ScopeComponent::paint(juce::Graphics& g)
 {
@@ -14,6 +15,45 @@ void SaturatorSection::ScopeComponent::paint(juce::Graphics& g)
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawRoundedRectangle(b.reduced(0.5f), 10.0f, 1.0f);
 
+    auto plotArea = b.reduced(8.0f, 6.0f);
+    g.setColour(juce::Colour(0x0affffff));
+    g.drawHorizontalLine(static_cast<int>(plotArea.getCentreY()), plotArea.getX(), plotArea.getRight());
+
+    // When SC Listen is on, show real sidechain signal (teal); otherwise synthetic waveform
+    std::vector<float> sidechainSamples;
+    if (proc_ && proc_->isScListenActive() && proc_->getScopeSidechainSamples(sidechainSamples) && sidechainSamples.size() > 1)
+    {
+        // § SC Listen: scope reflects sidechain — ombicTeal, single trace
+        float boxGlowAlpha = 0.04f;
+        g.setColour(OmbicLookAndFeel::ombicTeal().withAlpha(boxGlowAlpha));
+        g.fillRoundedRectangle(b.reduced(3.0f), 7.0f);
+
+        juce::Path path;
+        const size_t n = sidechainSamples.size();
+        const float w = plotArea.getWidth();
+        const float yMid = plotArea.getCentreY();
+        const float amp = plotArea.getHeight() * 0.4f;
+        float peak = 1e-6f;
+        for (size_t i = 0; i < n; ++i)
+            peak = juce::jmax(peak, std::abs(sidechainSamples[i]));
+        const float scale = (peak > 1e-6f) ? (amp / peak) : amp;
+        for (size_t i = 0; i < n; ++i)
+        {
+            float t = static_cast<float>(i) / static_cast<float>(n - 1);
+            float x = plotArea.getX() + t * w;
+            float y = yMid - sidechainSamples[i] * scale;
+            if (i == 0)
+                path.startNewSubPath(x, y);
+            else
+                path.lineTo(x, y);
+        }
+        g.setColour(OmbicLookAndFeel::ombicTeal().withAlpha(0.2f));
+        g.strokePath(path, juce::PathStrokeType(8.0f));
+        g.setColour(OmbicLookAndFeel::ombicTeal().withAlpha(0.85f));
+        g.strokePath(path, juce::PathStrokeType(2.0f));
+        return;
+    }
+
     float drive = driveSlider_ && intensitySlider_ ? static_cast<float>(driveSlider_->getValue() * 0.5 + intensitySlider_->getValue() * 0.25) : 0.4f;
     float intensity = driveSlider_ && intensitySlider_ ? static_cast<float>(intensitySlider_->getValue()) : 0.45f;
     drive = juce::jlimit(0.0f, 1.0f, drive);
@@ -22,11 +62,6 @@ void SaturatorSection::ScopeComponent::paint(juce::Graphics& g)
     float boxGlowAlpha = (drive * 0.12f + intensity * 0.06f) * 0.5f;
     g.setColour(juce::Colour(0xFFe85590).withAlpha(boxGlowAlpha));
     g.fillRoundedRectangle(b.reduced(3.0f), 7.0f);
-
-    auto plotArea = b.reduced(8.0f, 6.0f);
-    // Center line at 50% height
-    g.setColour(juce::Colour(0x0affffff));
-    g.drawHorizontalLine(static_cast<int>(plotArea.getCentreY()), plotArea.getX(), plotArea.getRight());
 
     float phase = static_cast<float>(juce::Time::getMillisecondCounter() % 100000) * 0.0001f;
     const int n = 200;
@@ -46,15 +81,12 @@ void SaturatorSection::ScopeComponent::paint(juce::Graphics& g)
         if (i == 0) { inputPath.startNewSubPath(x, inY); outputPath.startNewSubPath(x, outY); }
         else { inputPath.lineTo(x, inY); outputPath.lineTo(x, outY); }
     }
-    // Input: pluginMuted 60%, 1.5px
     g.setColour(OmbicLookAndFeel::pluginMuted().withAlpha(0.6f));
     g.strokePath(inputPath, juce::PathStrokeType(1.5f));
-    // Glow layer: same path 10px stroke
     g.setColour(OmbicLookAndFeel::ombicPink().withAlpha(drive * 0.25f));
     g.strokePath(outputPath, juce::PathStrokeType(10.0f));
     g.setColour(OmbicLookAndFeel::ombicRed().withAlpha(drive * 0.2f));
     g.strokePath(outputPath, juce::PathStrokeType(6.0f));
-    // Saturated waveform: gradient pluginMuted → #e85590 → ombicRed (single stroke blend)
     juce::Colour satCol = OmbicLookAndFeel::pluginMuted().interpolatedWith(juce::Colour(0xFFe85590), 0.5f).interpolatedWith(OmbicLookAndFeel::ombicRed(), 0.3f);
     g.setColour(satCol.withAlpha(0.6f + 0.4f * drive));
     g.strokePath(outputPath, juce::PathStrokeType(2.0f));
@@ -62,7 +94,7 @@ void SaturatorSection::ScopeComponent::paint(juce::Graphics& g)
 
 SaturatorSection::SaturatorSection(OmbicCompressorProcessor& processor)
     : proc(processor)
-    , scopeComponent_(driveSlider, intensitySlider)
+    , scopeComponent_(processor, driveSlider, intensitySlider)
 {
     setLookAndFeel(&ombicLf);
     addAndMakeVisible(scopeComponent_);

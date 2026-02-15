@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include <memory>
+#include <vector>
 
 namespace emulation { class MVPChain; class NeonTapeSaturation; }
 
@@ -61,6 +62,14 @@ public:
     static const char* paramNeonGMin;
     static const char* paramNeonSaturationAfter;
     static const char* paramOptoCompressLimit;
+    static const char* paramScFrequency;
+    static const char* paramScListen;
+
+    /** True when SC Listen is active (for header indicator). */
+    bool isScListenActive() const;
+
+    /** Copy of latest sidechain buffer for scope when Listen is on. Returns true if out was filled (Listen active and we have samples). Call from message thread only. */
+    bool getScopeSidechainSamples(std::vector<float>& out) const;
 
 private:
     std::atomic<bool> curveDataLoaded_{ false };
@@ -77,6 +86,20 @@ private:
     std::unique_ptr<emulation::MVPChain> optoChain_;
     std::unique_ptr<emulation::NeonTapeSaturation> standaloneNeon_;
     void ensureChains();
+
+    // Sidechain filter module: HPF on mono sum for detector; true bypass at 20 Hz
+    static constexpr float kScFilterOffHz = 20.0f;
+    juce::dsp::IIR::Filter<float> sidechainHpf_;
+    juce::dsp::IIR::Coefficients<float>::Ptr sidechainHpfCoeffs_;
+    juce::SmoothedValue<float> smoothedScFrequency_;
+    juce::AudioBuffer<float> sidechainMonoBuffer_;
+    juce::AudioBuffer<float> sidechainStereoForListen_;
+    float listenCrossfade_ = 0.0f;  // 0 = main, 1 = listen
+    void updateSidechainFilterCoeffs(float frequencyHz);
+
+    // Scope: when Listen is on, copy latest sidechain block for Neon scope (audio thread writes, message thread reads)
+    mutable juce::CriticalSection scopeSidechainLock_;
+    std::vector<float> scopeSidechainBuffer_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OmbicCompressorProcessor)
 };

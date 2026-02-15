@@ -27,11 +27,13 @@ public:
     /** Opto sidechain: rolloff = LPF so bass drives compression more; limit = HF shelf so Limit mode has more HF sensitivity. Call when in Opto mode (and on sample rate change). */
     void setSidechainOptoOptions(bool rolloff, bool limit, double sampleRate);
 
-    /** Process buffer. When attack_param/release_param are set and timing data exists, uses one-pole envelope. When both nullopt (Opto), uses fixed program-dependent envelope. */
+    /** Process buffer. When attack_param/release_param are set and timing data exists, uses one-pole envelope. When both nullopt (Opto), uses fixed program-dependent envelope.
+     *  If externalDetectorBuffer is non-null, level is taken from that buffer (e.g. SC-filtered mono); gain is still applied to buffer. When set, internal Opto LPF/shelf are not applied. */
     void process(juce::AudioBuffer<float>& buffer, double sampleRate,
                  float threshold, std::optional<float> ratio,
                  std::optional<float> attackParam, std::optional<float> releaseParam,
-                 int blockSize = 512);
+                 int blockSize = 512,
+                 const juce::AudioBuffer<float>* externalDetectorBuffer = nullptr);
 
     /** Last gain reduction (dB) applied in process() — for metering. */
     float getLastGainReductionDb() const { return lastGrDb_; }

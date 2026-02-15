@@ -165,7 +165,8 @@ std::pair<std::optional<float>, std::optional<float>> MeasuredCompressor::getAtt
 void MeasuredCompressor::process(juce::AudioBuffer<float>& buffer, double sampleRate,
                                  float threshold, std::optional<float> ratio,
                                  std::optional<float> attackParam, std::optional<float> releaseParam,
-                                 int blockSize)
+                                 int blockSize,
+                                 const juce::AudioBuffer<float>* externalDetectorBuffer)
 {
     const int numChannels = buffer.getNumChannels();
     const int numSamples = buffer.getNumSamples();
@@ -197,7 +198,11 @@ void MeasuredCompressor::process(juce::AudioBuffer<float>& buffer, double sample
         coeffRelease = 1.0f - std::exp(-(float)blockSize / tauReleaseSamp);
     }
 
-    const bool useSidechainFilter = sidechainRolloff_ || sidechainLimit_;
+    const bool useExternalDetector = externalDetectorBuffer != nullptr
+        && externalDetectorBuffer->getNumSamples() > 0
+        && externalDetectorBuffer->getNumChannels() > 0;
+
+    const bool useSidechainFilter = !useExternalDetector && (sidechainRolloff_ || sidechainLimit_);
     if (useSidechainFilter)
     {
         ensureSidechainFilters(numChannels, sampleRate);
@@ -218,7 +223,11 @@ void MeasuredCompressor::process(juce::AudioBuffer<float>& buffer, double sample
             }
         }
     }
-    juce::AudioBuffer<float>* levelBuffer = useSidechainFilter ? &sidechainBuffer_ : &buffer;
+    juce::AudioBuffer<float>* levelBuffer = useExternalDetector
+        ? const_cast<juce::AudioBuffer<float>*>(externalDetectorBuffer)
+        : (useSidechainFilter ? &sidechainBuffer_ : &buffer);
+    const int levelChannels = levelBuffer->getNumChannels();
+    const int levelSamples = levelBuffer->getNumSamples();
 
     int nBlocks = (numSamples + blockSize - 1) / blockSize;
     for (int b = 0; b < nBlocks; ++b)
@@ -226,11 +235,14 @@ void MeasuredCompressor::process(juce::AudioBuffer<float>& buffer, double sample
         int start = b * blockSize;
         int end = std::min(start + blockSize, numSamples);
         int len = end - start;
+        int levelEnd = std::min(end, levelSamples);
+        int levelLen = levelEnd - start;
+        if (levelLen <= 0) levelLen = len;
         float sumSq = 0;
-        for (int ch = 0; ch < numChannels; ++ch)
-            for (int i = start; i < end; ++i)
+        for (int ch = 0; ch < levelChannels; ++ch)
+            for (int i = start; i < end && i < levelSamples; ++i)
                 sumSq += levelBuffer->getSample(ch, i) * levelBuffer->getSample(ch, i);
-        float rms = std::sqrt(sumSq / (numChannels * len));
+        float rms = std::sqrt(sumSq / static_cast<float>(levelChannels * juce::jmax(1, levelLen)));
         float inputDb = rms <= 1e-10f ? -100.0f : 20.0f * std::log10(rms);
         float targetGrDb = gainReductionDb(threshold, inputDb, ratio, {}, {});
 

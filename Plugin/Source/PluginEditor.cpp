@@ -5,6 +5,7 @@
 OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
     : AudioProcessorEditor(&p)
     , processorRef(p)
+    , sidechainFilterSection(p)
     , compressorSection(p)
     , saturatorSection(p)
     , outputSection(p)
@@ -28,6 +29,7 @@ OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
     optoPill_.onClick = [this]() { compressorSection.getModeCombo().setSelectedId(1, juce::sendNotificationSync); };
     fetPill_.onClick  = [this]() { compressorSection.getModeCombo().setSelectedId(2, juce::sendNotificationSync); };
 
+    addAndMakeVisible(sidechainFilterSection);
     addAndMakeVisible(compressorSection);
     addAndMakeVisible(saturatorSection);
     addAndMakeVisible(outputSection);
@@ -35,6 +37,10 @@ OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
 
     auto& apvts = processorRef.getValueTreeState();
 
+    scFrequencyAttachment = std::make_unique<SliderAttachment>(
+        apvts, OmbicCompressorProcessor::paramScFrequency, sidechainFilterSection.getFrequencySlider());
+    scListenAttachment = std::make_unique<ButtonAttachment>(
+        apvts, OmbicCompressorProcessor::paramScListen, sidechainFilterSection.getListenButton());
     modeAttachment = std::make_unique<ComboBoxAttachment>(
         apvts, OmbicCompressorProcessor::paramCompressorMode, compressorSection.getModeCombo());
     compressLimitAttachment = std::make_unique<ComboBoxAttachment>(
@@ -79,21 +85,26 @@ void OmbicCompressorEditor::timerCallback()
     // §3: animate column widths toward target (300ms ease)
     if (contentW_ > 0)
     {
+        const int gridGap = 12;
+        const int minScFilterW = 120;
+        const int minOutW = 100;
+        int available = contentW_ - 3 * gridGap;
+        float scFr = 0.55f;
         int modeIndex = compressorSection.getModeCombo().getSelectedId() == 2 ? 1 : 0;
         float compFr = modeIndex == 0 ? 0.85f : 1.5f;
         float neonFr = modeIndex == 0 ? 1.6f : 1.3f;
         float outFr = modeIndex == 0 ? 0.7f : 0.6f;
-        float total = compFr + neonFr + outFr;
-        const int minOutW = 100;
-        int available = contentW_;
+        float total = scFr + compFr + neonFr + outFr;
+        int tScFilter = juce::jmax(minScFilterW, static_cast<int>(available * (scFr / total)));
         int tComp = juce::jmax(320, static_cast<int>(available * (compFr / total)));
         int tNeon = static_cast<int>(available * (neonFr / total));
-        int tOut = available - tComp - tNeon;
-        if (tOut < minOutW) { tOut = minOutW; tNeon = available - tComp - tOut; }
+        int tOut = available - tScFilter - tComp - tNeon;
+        if (tOut < minOutW) { tOut = minOutW; tNeon = available - tScFilter - tComp - tOut; }
+        animScFilterW_ += (static_cast<float>(tScFilter) - animScFilterW_) * animRate_;
         animCompW_ += (static_cast<float>(tComp) - animCompW_) * animRate_;
         animNeonW_ += (static_cast<float>(tNeon) - animNeonW_) * animRate_;
         animOutW_ += (static_cast<float>(tOut) - animOutW_) * animRate_;
-        applyColumnLayout(static_cast<int>(animCompW_ + 0.5f), static_cast<int>(animNeonW_ + 0.5f), static_cast<int>(animOutW_ + 0.5f));
+        applyColumnLayout(static_cast<int>(animScFilterW_ + 0.5f), static_cast<int>(animCompW_ + 0.5f), static_cast<int>(animNeonW_ + 0.5f), static_cast<int>(animOutW_ + 0.5f));
     }
 
     bool curveLoaded = processorRef.hasCurveDataLoaded();
@@ -174,6 +185,11 @@ void OmbicCompressorEditor::paint(juce::Graphics& g)
     g.setColour(OmbicLookAndFeel::pluginText().withAlpha(0.9f));
     g.drawText("Compressor", 68, 0, 180, kHeaderH, juce::Justification::left);
     g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(10.0f, true));
+    if (processorRef.isScListenActive())
+    {
+        g.setColour(OmbicLookAndFeel::ombicTeal());
+        g.drawText("\u25CF SC LISTEN", w - 200, 0, 90, kHeaderH, juce::Justification::right);
+    }
     g.setColour(OmbicLookAndFeel::ombicTeal());
     if (processorRef.hasCurveDataLoaded())
         g.drawText("\u25CF Curve OK", w - 100, 0, 90, kHeaderH, juce::Justification::right);
@@ -191,10 +207,12 @@ void OmbicCompressorEditor::paint(juce::Graphics& g)
     g.drawText("STEREO", footerRect.getRight() - 55, footerRect.getY(), 50, footerRect.getHeight(), juce::Justification::right);
 }
 
-void OmbicCompressorEditor::applyColumnLayout(int compW, int neonW, int outW)
+void OmbicCompressorEditor::applyColumnLayout(int scFilterW, int compW, int neonW, int outW)
 {
     const int gridGap = 12;
     int x = contentX_;
+    sidechainFilterSection.setBounds(x, contentY_, scFilterW, contentH_);
+    x += scFilterW + gridGap;
     compressorSection.setBounds(x, contentY_, compW, contentH_);
     x += compW + gridGap;
     saturatorSection.setBounds(x, contentY_, neonW, contentH_);
@@ -228,22 +246,26 @@ void OmbicCompressorEditor::resized()
     contentX_ = content.getX();
     contentY_ = content.getY();
     contentH_ = content.getHeight();
-    int available = content.getWidth() - 2 * gridGap;
-    contentW_ = available;
+    int available = content.getWidth() - 3 * gridGap;
+    contentW_ = content.getWidth();
 
+    const float scFr = 0.55f;
     int modeIndex = compressorSection.getModeCombo().getSelectedId() == 2 ? 1 : 0;
     float compFr = modeIndex == 0 ? 0.85f : 1.5f;
     float neonFr = modeIndex == 0 ? 1.6f : 1.3f;
     float outFr = modeIndex == 0 ? 0.7f : 0.6f;
-    float total = compFr + neonFr + outFr;
+    float total = scFr + compFr + neonFr + outFr;
+    const int minScFilterW = 120;
     const int minOutW = 100;
+    int scFilterW = juce::jmax(minScFilterW, static_cast<int>(available * (scFr / total)));
     int compW = juce::jmax(320, static_cast<int>(available * (compFr / total)));
     int neonW = static_cast<int>(available * (neonFr / total));
-    int outW = available - compW - neonW;
-    if (outW < minOutW) { outW = minOutW; neonW = available - compW - outW; }
+    int outW = available - scFilterW - compW - neonW;
+    if (outW < minOutW) { outW = minOutW; neonW = available - scFilterW - compW - outW; }
 
+    animScFilterW_ = static_cast<float>(scFilterW);
     animCompW_ = static_cast<float>(compW);
     animNeonW_ = static_cast<float>(neonW);
     animOutW_ = static_cast<float>(outW);
-    applyColumnLayout(compW, neonW, outW);
+    applyColumnLayout(scFilterW, compW, neonW, outW);
 }

@@ -147,6 +147,29 @@ void OmbicLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& but
         return;
     }
 
+    const bool isScListen = button.getName().contains("sc_listen") || button.getName().contains("LISTEN");
+    if (isScListen)
+    {
+        const bool selected = button.getToggleState();
+        const float radius = 6.0f;
+        if (selected)
+        {
+            float pulse = 0.85f + 0.15f * 0.5f * (1.0f + std::sin(static_cast<float>(juce::Time::getMillisecondCounter()) * 0.004f));
+            g.setColour(ombicTeal().withAlpha(pulse));
+            g.fillRoundedRectangle(bounds, radius);
+            g.setColour(ombicTeal());
+            g.drawRoundedRectangle(bounds.reduced(0.75f), radius - 0.75f, 1.5f);
+        }
+        else
+        {
+            g.setColour(pluginBg());
+            g.fillRoundedRectangle(bounds, radius);
+            g.setColour(isMouseOver ? ombicTeal() : pluginBorder());
+            g.drawRoundedRectangle(bounds.reduced(0.75f), radius - 0.75f, 1.5f);
+        }
+        return;
+    }
+
     const int borderW = 3;
     const int shadowOffset = 4;
     const bool selected = button.getToggleState();
@@ -177,6 +200,13 @@ void OmbicLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& butto
     {
         g.setColour(button.getToggleState() ? juce::Colours::white : (isMouseOver ? pluginText() : pluginMuted()));
         g.setFont(getOmbicFont(11.0f, 900.0f));
+        g.drawText(button.getButtonText(), button.getLocalBounds(), juce::Justification::centred);
+        return;
+    }
+    if (button.getName().contains("sc_listen") || button.getName().contains("LISTEN"))
+    {
+        g.setColour(button.getToggleState() ? juce::Colours::white : (isMouseOver ? pluginText() : pluginMuted()));
+        g.setFont(getOmbicFont(8.0f, 900.0f));
         g.drawText(button.getButtonText(), button.getLocalBounds(), juce::Justification::centred);
         return;
     }
@@ -286,7 +316,9 @@ void OmbicLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int wid
     const float r = inner.getWidth() * 0.5f;
 
     juce::Colour accent = ombicBlue();
-    if (slider.getName().contains("saturation") || slider.getName().contains("drive")
+    if (slider.getName().contains("sc") || slider.getName().contains("sidechain"))
+        accent = ombicTeal();
+    else if (slider.getName().contains("saturation") || slider.getName().contains("drive")
         || slider.getName().contains("intensity") || slider.getName().contains("tone") || slider.getName().contains("mix"))
         accent = juce::Colour(0xFFe85590);
     else if (slider.getName().contains("output"))

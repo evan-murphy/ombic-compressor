@@ -52,7 +52,8 @@ void MVPChain::process(juce::AudioBuffer<float>& buffer,
                        std::optional<float> attackParam,
                        std::optional<float> releaseParam,
                        int blockSize,
-                       std::optional<bool> optoLimitMode)
+                       std::optional<bool> optoLimitMode,
+                       const juce::AudioBuffer<float>* externalDetectorBuffer)
 {
     if (mode_ == Mode::Opto)
     {
@@ -66,9 +67,11 @@ void MVPChain::process(juce::AudioBuffer<float>& buffer,
 
     if (compressor_)
     {
-        if (mode_ == Mode::Opto)
+        if (mode_ == Mode::Opto && externalDetectorBuffer == nullptr)
             compressor_->setSidechainOptoOptions(true, optoLimitMode.value_or(false), sampleRate_);
-        compressor_->process(buffer, sampleRate_, threshold, ratio, attackParam, releaseParam, blockSize);
+        else if (mode_ == Mode::Opto && externalDetectorBuffer != nullptr)
+            compressor_->setSidechainOptoOptions(false, false, sampleRate_);  // external detector: no internal Opto LPF/shelf
+        compressor_->process(buffer, sampleRate_, threshold, ratio, attackParam, releaseParam, blockSize, externalDetectorBuffer);
         lastGrDb_ = compressor_->getLastGainReductionDb();
         // Opto curve is gentle; apply extra gain reduction so it can sound more aggressive
         if (mode_ == Mode::Opto)

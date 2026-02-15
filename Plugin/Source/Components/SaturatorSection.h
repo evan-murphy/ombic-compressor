@@ -29,9 +29,10 @@ private:
     class ScopeComponent : public juce::Component
     {
     public:
-        ScopeComponent(juce::Slider& drive, juce::Slider& intensity);
+        ScopeComponent(OmbicCompressorProcessor& processor, juce::Slider& drive, juce::Slider& intensity);
         void paint(juce::Graphics& g) override;
     private:
+        OmbicCompressorProcessor* proc_ = nullptr;
         juce::Slider* driveSlider_ = nullptr;
         juce::Slider* intensitySlider_ = nullptr;
     };
@@ -48,7 +49,7 @@ private:
     juce::Slider intensitySlider;
     juce::Slider toneSlider;
     juce::Slider mixSlider;
-    ScopeComponent scopeComponent_;
+    ScopeComponent scopeComponent_;  // when SC Listen on, shows sidechain (teal); else synthetic waveform
     juce::Label driveLabel;
     juce::Label intensityLabel;
     juce::Label toneLabel;
