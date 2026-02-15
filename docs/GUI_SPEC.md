@@ -75,7 +75,7 @@ All parameters are registered with `AudioProcessorValueTreeState` and attached t
 | `attack`           | Float   | 0.02…0.8 ms (FET) or N/A | 0.1 | SliderAttachment; hidden in Opto |
 | `release`          | Float   | 50…1100 ms (FET)  | 200     | SliderAttachment; hidden in Opto |
 | `opto_compress_limit` | Choice | 0 = Compress, 1 = Limit | 0 | ComboBoxAttachment; **Opto only**; visible when mode = Opto |
-| `makeup_gain_db`   | Float   | -24…+24 dB           | 0       | SliderAttachment; **Output** section (after saturator + compressor) |
+| `makeup_gain_db`   | Float   | -24…+12 dB           | 0       | SliderAttachment; **Output** section (after saturator + compressor); boost capped for safe listening |
 
 #### Saturator (Neon)
 

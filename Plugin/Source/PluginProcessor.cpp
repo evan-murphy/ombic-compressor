@@ -91,10 +91,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::cr
         200.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
 
+    // Output (makeup/trim) capped at +12 dB max for safe listening; -24 dB for trim.
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ paramMakeupGainDb, 1 },
         "Output",
-        juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f, 1.0f),
+        juce::NormalisableRange<float>(-24.0f, 12.0f, 0.1f, 1.0f),
         0.0f,
         juce::AudioParameterFloatAttributes().withLabel("dB")));
 
@@ -276,7 +277,8 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     const float ratio = apvts.getRawParameterValue(paramRatio)->load();
     const float attackParam = apvts.getRawParameterValue(paramAttack)->load();
     const float releaseParam = apvts.getRawParameterValue(paramRelease)->load();
-    const float makeupDb = apvts.getRawParameterValue(paramMakeupGainDb)->load();
+    float makeupDb = apvts.getRawParameterValue(paramMakeupGainDb)->load();
+    makeupDb = juce::jlimit(-24.0f, 12.0f, makeupDb);  // Safe listening: cap boost
     const float neonDrive = apvts.getRawParameterValue(paramNeonDrive)->load();
     const float neonTone = apvts.getRawParameterValue(paramNeonTone)->load();
     const float neonMix = apvts.getRawParameterValue(paramNeonMix)->load();
