@@ -134,6 +134,8 @@ SaturatorSection::SaturatorSection(OmbicCompressorProcessor& processor)
     mixLabel.setColour(juce::Label::textColourId, labelCol);
     mixLabel.setFont(labelFont);
     addAndMakeVisible(mixLabel);
+
+    setTooltip("Random gain wobble (like a starved bulb flickering), not a fixed waveshape.");
 }
 
 SaturatorSection::~SaturatorSection()
@@ -224,7 +226,7 @@ void SaturatorSection::paint(juce::Graphics& g)
 
     g.setColour(juce::Colours::white);
     g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(13.0f, true));
-    g.drawText("NEON SATURATION", static_cast<int>(capX + capW + 8), 8, 200, 20, juce::Justification::left);
+    g.drawText("NEON BULB SATURATION", static_cast<int>(capX + capW + 8), 8, 200, 20, juce::Justification::left);
 }
 
 void SaturatorSection::resized()

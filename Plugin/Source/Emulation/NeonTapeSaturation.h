@@ -11,7 +11,8 @@ class NeonTapeSaturation
 public:
     explicit NeonTapeSaturation(double sampleRate);
 
-    /** depth: 0..1 — modulation amount and saturation drive (audible tanh scales with this). */
+    /** depth: 0..1 — modulation amount and saturation drive (audible tanh scales with this).
+     *  Modulation range is exaggerated (effective max gain = 1 + depth * modulationScale_) so the neon wobble is clearly audible. */
     void setDepth(float depth);
     void setModulationBandwidthHz(float hz);
     void setBurstiness(float b);
@@ -60,6 +61,8 @@ private:
 
     juce::Random rng_;
     static constexpr float meanAlpha_ = 0.9999f;
+    /** Exaggeration: scale modulation so gain can deviate further (more audible neon wobble). 2.f = at full depth, gain can reach 3x. */
+    static constexpr float modulationScale_ = 2.0f;
 };
 
 } // namespace emulation

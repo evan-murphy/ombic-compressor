@@ -5,7 +5,7 @@
 
 class OmbicCompressorProcessor;
 
-/** Neon saturator controls: drive, intensity, tone, mix. */
+/** Neon bulb saturator controls: drive, intensity, tone, mix. */
 class SaturatorSection : public juce::Component
 {
 public:

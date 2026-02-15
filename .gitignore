@@ -11,5 +11,5 @@ CMakeFiles/
 *.user
 .DS_Store
 
-# Optional: uncomment if you generate curve data in-repo
+# Curve data (output/fetish_v2, output/lala_v2) is required and committed; do not ignore
 # output/

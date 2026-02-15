@@ -15,6 +15,16 @@ if(NOT EXISTS "${OMBIC_LOGO_FILE}")
     message(FATAL_ERROR "Logo missing: ${OMBIC_LOGO_FILE} — add Ombic_Alpha.png to Plugin/Assets/ to build.")
 endif()
 
+# Curve data: required and always packaged with the plugin (no dependency on external tools)
+set(OMBIC_CURVE_FETISH "${CMAKE_SOURCE_DIR}/output/fetish_v2")
+set(OMBIC_CURVE_LALA "${CMAKE_SOURCE_DIR}/output/lala_v2")
+if(NOT EXISTS "${OMBIC_CURVE_FETISH}")
+    message(FATAL_ERROR "Curve data required: ${OMBIC_CURVE_FETISH} missing. This repo must contain output/fetish_v2 and output/lala_v2.")
+endif()
+if(NOT EXISTS "${OMBIC_CURVE_LALA}")
+    message(FATAL_ERROR "Curve data required: ${OMBIC_CURVE_LALA} missing. This repo must contain output/fetish_v2 and output/lala_v2.")
+endif()
+
 # Trash fonts: embed from Plugin/fonts/ when present (design-spec-files/OMBIC_COMPRESSOR_JUCE_SPEC.md)
 set(OMBIC_ASSET_SOURCES "${OMBIC_LOGO_FILE}")
 set(OMBIC_FONTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/fonts")
@@ -89,26 +99,16 @@ target_include_directories(OmbicCompressor
 
 juce_generate_juce_header(OmbicCompressor)
 
-# Bundle curve data into VST3 (if output/ data exists), then re-copy the full bundle to the plugin folder
+# Bundle curve data into VST3 (required; always packaged)
 set(OMBIC_VST3_BUNDLE "${CMAKE_CURRENT_BINARY_DIR}/OmbicCompressor_artefacts/VST3/Ombic Compressor.vst3")
 set(OMBIC_VST3_RESOURCES "${OMBIC_VST3_BUNDLE}/Contents/Resources/CurveData")
 add_custom_command(TARGET OmbicCompressor_VST3 POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory "${OMBIC_VST3_RESOURCES}/fetish_v2"
   COMMAND ${CMAKE_COMMAND} -E make_directory "${OMBIC_VST3_RESOURCES}/lala_v2"
-  COMMENT "Creating CurveData dirs in VST3 bundle"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${OMBIC_CURVE_FETISH}" "${OMBIC_VST3_RESOURCES}/fetish_v2"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${OMBIC_CURVE_LALA}" "${OMBIC_VST3_RESOURCES}/lala_v2"
+  COMMENT "Packaging curve data into VST3 bundle"
 )
-if(EXISTS "${CMAKE_SOURCE_DIR}/output/fetish_v2")
-  add_custom_command(TARGET OmbicCompressor_VST3 POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/output/fetish_v2" "${OMBIC_VST3_RESOURCES}/fetish_v2"
-    COMMENT "Copying fetish_v2 curve data"
-  )
-endif()
-if(EXISTS "${CMAKE_SOURCE_DIR}/output/lala_v2")
-  add_custom_command(TARGET OmbicCompressor_VST3 POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/output/lala_v2" "${OMBIC_VST3_RESOURCES}/lala_v2"
-    COMMENT "Copying lala_v2 curve data"
-  )
-endif()
 if(APPLE)
   add_custom_command(TARGET OmbicCompressor_VST3 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E remove_directory "$ENV{HOME}/Library/Audio/Plug-Ins/VST3/Ombic Compressor.vst3"

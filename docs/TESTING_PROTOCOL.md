@@ -1,14 +1,14 @@
 # Ombic Compressor – Testing Protocol (REAPER)
 
-Use this checklist to verify the plugin in REAPER after a build. The plugin must load its curve data from disk, so **run REAPER from the project root** (or set your project folder to the VST repo root) so that `output/fetish_v2/` and `output/lala_v2/` are found.
+Use this checklist to verify the plugin in REAPER after a build. Curve data is always packaged with the plugin; the header shows “● Curve OK” when it loads successfully.
 
 ---
 
 ## 1. Load the plugin
 
-1. **Start REAPER** from the VST project directory (e.g. `open -a REAPER` from the repo root, or set REAPER’s working directory to the repo).
+1. **Start REAPER** and open or create a project.
 2. Create or open a project, add a track, and insert **VST3: Ombic Compressor** on that track.
-3. Confirm the GUI opens: red “OMBIC Compressor” header, Compressor section (Mode, Threshold, etc.), Neon Saturation section, Output section, and the meter strip (In / GR / Out) on the right.
+3. Confirm the GUI opens: red “OMBIC Compressor” header, Compressor section (Mode, Threshold, etc.), Neon bulb saturation section, Output section, and the meter strip (In / GR / Out) on the right.
 
 ---
 
@@ -38,9 +38,9 @@ Use this checklist to verify the plugin in REAPER after a build. The plugin must
 
 ---
 
-## 5. Neon Saturation
+## 5. Neon bulb saturation
 
-1. Turn **Neon Saturation** on (if there’s an On control) and set **Mix** to taste (e.g. 0.5–1.0).
+1. Turn **Neon bulb saturation** on (if there’s an On control) and set **Mix** to taste (e.g. 0.5–1.0).
 2. Increase **Drive** and **Tone** and confirm audible saturation and no crashes.
 3. Saturator is fixed **before** the compressor; drive and mix affect how much hits the compressor.
 
@@ -48,9 +48,7 @@ Use this checklist to verify the plugin in REAPER after a build. The plugin must
 
 ## 6. Data path (if something seems wrong)
 
-- If the compressor doesn’t seem to reduce gain in either mode, the plugin may not have found the curve data. Check:
-  - Current working directory when REAPER was started (should be the repo root so `output/fetish_v2/` and `output/lala_v2/` exist).
-  - No error messages in REAPER’s console (if available).
+- Curve data is always bundled at build time. If the compressor doesn’t seem to reduce gain, check the header (“No curve data” = load failed) and that you’re using a build that included the repo’s `output/fetish_v2` and `output/lala_v2`. You can override at runtime with `OMBIC_COMPRESSOR_DATA_PATH` pointing at a directory containing `fetish_v2/` and `lala_v2/`.
 - Rebuild and re-copy the VST3 to `~/Library/Audio/Plug-Ins/VST3/` if you changed code or data paths.
 
 ---
@@ -59,7 +57,7 @@ Use this checklist to verify the plugin in REAPER after a build. The plugin must
 
 - **Opto:** Smoother, more “leveling” compression; threshold 0–100 controls amount.
 - **FET:** More control (threshold in dB, ratio, attack, release); GR should track the measured FET curve and envelope.
-- **Neon:** Extra harmonic character and level modulation; before compressor = more hit on the detector; after = more “finishing” saturation.
+- **Neon bulb:** Extra harmonic character and level modulation; before compressor = more hit on the detector; after = more “finishing” saturation.
 
 ---
 

@@ -21,7 +21,8 @@ NeonTapeSaturation::NeonTapeSaturation(double sampleRate) : sampleRate_(sampleRa
 {
     lpAlpha_ = onePoleCoeffFromHz(modulationBandwidthHz_, (float)sampleRate_);
     hpAlpha_ = onePoleHighpassCoeffFromHz(100.0f, (float)sampleRate_);
-    smoothBeta_ = onePoleCoeffFromHz(100.0f, (float)sampleRate_);
+    // Faster smoothing (~250 Hz) so gain follows noise more — more audible "neon flicker"
+    smoothBeta_ = onePoleCoeffFromHz(250.0f, (float)sampleRate_);
     toneFilterAlpha_ = onePoleCoeffFromHz(toneFilterCutoffHz_, (float)sampleRate_);
 }
 
@@ -97,7 +98,8 @@ float NeonTapeSaturation::nextBurst()
         float decay = std::exp(-3.0f / std::max(1.0f, burstPhaseSamples_));
         burstEnvelope_ *= decay;
         burstPhaseSamples_ -= 1.0f;
-        return burstEnvelope_ * (2.0f * rng_.nextFloat() - 1.0f);
+        // Exaggerated burst level (2x) so neon "discharge" events are clearly audible when burstiness > 0
+        return 2.0f * burstEnvelope_ * (2.0f * rng_.nextFloat() - 1.0f);
     }
     return 0.0f;
 }
@@ -105,7 +107,8 @@ float NeonTapeSaturation::nextBurst()
 float NeonTapeSaturation::gainFromC(float c) const
 {
     float g = 1.0f + c;
-    return juce::jlimit(gMin_, 1.0f + depth_, g);
+    float maxGain = 1.0f + depth_ * modulationScale_;
+    return juce::jlimit(gMin_, maxGain, g);
 }
 
 float NeonTapeSaturation::advanceModulation()
@@ -121,7 +124,7 @@ float NeonTapeSaturation::advanceModulation()
     runningMean_ = meanAlpha_ * runningMean_ + (1.0f - meanAlpha_) * noiseLp;
     runningVar_ = meanAlpha_ * runningVar_ + (1.0f - meanAlpha_) * (noiseLp - runningMean_) * (noiseLp - runningMean_);
     float sigma = std::sqrt(runningVar_) + 1e-12f;
-    float c = depth_ * (noiseLp - runningMean_) / sigma;
+    float c = depth_ * modulationScale_ * (noiseLp - runningMean_) / sigma;
     float gMod = gainFromC(c);
     smoothState_ = smoothBeta_ * smoothState_ + (1.0f - smoothBeta_) * gMod;
     return smoothState_;
