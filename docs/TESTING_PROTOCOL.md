@@ -69,3 +69,17 @@ For VST compressor GUI best practices (gain reduction metering, transfer curve, 
 - **Focus:** How professional compressors show GR (numeric vs bar, scale), input/output metering, and whether a transfer-curve graph is expected. Use the results to refine the OMBIC GUI (meter scale, GR readout, and any future transfer-curve view) while keeping the existing OMBIC design system.
 
 A few notes are collected in **docs/GUI_BEST_PRACTICES_RESEARCH.md** for when you run that research.
+
+---
+
+## 9. Automated debug and E2E validation (VST analyzer)
+
+To verify **parameters and compression** (and optionally that the compressor matches the reference plugins), use the **ombic-vst-inspector** repo:
+
+- **Runbook (all commands in one place):**  
+  **ombic-vst-inspector/docs/RUNBOOK_OMBIC_VALIDATION.md**
+
+  - **Option A — Debug only:** Run the analyzer on the built Ombic Compressor; check `output/ombic_compressor/validation_report.json`. One script: `./scripts/run_analyzer_ombic.sh`.
+  - **Option B — Full E2E:** Analyze reference (FETish/LALA) → copy curve data into this repo → build compressor → analyze Ombic → run the compare script. Pass/fail = compressor matches reference within tolerance.
+
+Use the runbook for copy-paste commands and prerequisites. Details: **ombic-vst-inspector/docs/DEBUG_OMBIC_COMPRESSOR.md** and **docs/E2E_VALIDATION_WORKFLOW.md**.

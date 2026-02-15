@@ -24,6 +24,8 @@ Curve data lives in **`output/fetish_v2`** and **`output/lala_v2`** (committed i
 
 ## GUI
 
+![Ombic Compressor](docs/screenshot.png)
+
 - **Header**: OMBIC branding; “Curve data: OK” when measured data is loaded.
 - **Signal flow**: IN → Saturator → Compressor → OUT.
 - **Transfer curve**: In vs Out (dB) with current operating point.
@@ -32,7 +34,7 @@ Curve data lives in **`output/fetish_v2`** and **`output/lala_v2`** (committed i
 - **Output**: Makeup/trim gain.
 - **Meters**: Input, gain reduction, output.
 
-See `docs/GUI_SPEC.md` for parameters and `docs/TESTING_PROTOCOL.md` for testing in a DAW.
+See `docs/GUI_SPEC.md` for parameters and `docs/TESTING_PROTOCOL.md` for testing in a DAW. For **automated validation** (analyzer + E2E compare vs reference plugins), see **ombic-vst-inspector** repo → `docs/RUNBOOK_OMBIC_VALIDATION.md`.
 
 ---
 
