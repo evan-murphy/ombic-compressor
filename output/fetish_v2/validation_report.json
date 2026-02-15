@@ -1,0 +1,27 @@
+[
+  {
+    "check_name": "compression_curve",
+    "status": "pass",
+    "message": "10000 rows"
+  },
+  {
+    "check_name": "frequency_response",
+    "status": "pass",
+    "message": "150 rows"
+  },
+  {
+    "check_name": "thd_vs_level",
+    "status": "pass",
+    "message": "13 levels"
+  },
+  {
+    "check_name": "timing",
+    "status": "warn",
+    "message": "400/400 timing rows used fallback (measurement_ok=false)"
+  },
+  {
+    "check_name": "timing",
+    "status": "pass",
+    "message": "400 rows"
+  }
+]

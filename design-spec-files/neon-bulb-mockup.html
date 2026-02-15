@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neon Bulb GUI options — pick for final spec</title>
+  <style>
+    /* OMBIC palette (from OmbicLookAndFeel.h) */
+    :root {
+      --ombic-red:     #ff001f;
+      --ombic-blue:    #076dc3;
+      --ombic-teal:    #338fab;
+      --ombic-yellow:  #ffce00;
+      --ombic-purple:  #5300aa;
+      --ombic-pink:    #ffb3c9;
+      --neon-pink:     #e85590;  /* saturation accent */
+      --plugin-bg:     #0f1220;
+      --plugin-surface: #181c2e;
+      --plugin-raised:  #222840;
+      --plugin-text:   #e6e9ef;
+      --plugin-muted:  #6b7280;
+      --plugin-border: rgba(230, 233, 239, 0.2);
+      --plugin-border-strong: rgba(230, 233, 239, 0.35);
+      --scope-bg:      #080a12;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--plugin-bg);
+      color: var(--plugin-text);
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+      color: var(--plugin-text);
+    }
+    .intro {
+      color: var(--plugin-muted);
+      font-size: 0.875rem;
+      margin-bottom: 24px;
+      max-width: 560px;
+    }
+    .options {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 24px;
+    }
+    .card {
+      background: var(--plugin-surface);
+      border: 1px solid var(--plugin-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .card-header {
+      background: var(--neon-pink);
+      color: var(--plugin-bg);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 10px 14px;
+    }
+    .card-label {
+      font-size: 0.7rem;
+      color: var(--plugin-muted);
+      margin-top: 8px;
+      padding: 0 14px 4px;
+      border-bottom: 1px solid var(--plugin-border);
+    }
+    .bulb-area {
+      height: 110px;
+      margin: 8px 10px;
+      background: var(--scope-bg);
+      border-radius: 10px;
+      border: 1px solid var(--plugin-border);
+      position: relative;
+      overflow: hidden;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      padding: 12px 14px 14px;
+      flex-wrap: wrap;
+    }
+    .control {
+      flex: 1;
+      min-width: 64px;
+    }
+    .control label {
+      display: block;
+      font-size: 0.65rem;
+      color: var(--plugin-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .control input[type="range"] {
+      width: 100%;
+      height: 6px;
+      accent-color: var(--neon-pink);
+      background: var(--plugin-raised);
+      border-radius: 3px;
+    }
+    .control .value {
+      font-size: 0.7rem;
+      color: var(--plugin-text);
+    }
+
+    /* Option-specific bulb content */
+    .bulb-area svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .filament-stroke {
+      fill: none;
+      stroke: var(--neon-pink);
+      stroke-width: 2;
+      opacity: 0.9;
+    }
+    .filament-glow {
+      fill: none;
+      stroke: var(--neon-pink);
+      stroke-width: 12;
+      opacity: 0.25;
+    }
+    .spectrum-bar {
+      fill: var(--neon-pink);
+      opacity: 0.85;
+    }
+    .spectrogram-cell {
+      transition: fill 0.05s ease;
+    }
+  </style>
+</head>
+<body>
+  <h1>Neon Bulb GUI options</h1>
+  <p class="intro">Same section (Neon Saturation), different ways to show the “filament” as the signal. Pick one or combine ideas for the final spec.</p>
+
+  <div class="options">
+
+    <!-- Option 1: Waveform (time-domain) -->
+    <div class="card" data-option="1">
+      <div class="card-header">NEON SATURATION</div>
+      <div class="card-label">Option 1 — Filament = Waveform (time-domain)</div>
+      <div class="bulb-area" id="bulb-waveform">
+        <svg viewBox="0 0 280 110" preserveAspectRatio="none">
+          <defs>
+            <filter id="glow1"><feGaussianBlur stdDeviation="3"/></filter>
+          </defs>
+          <path id="path-waveform" class="filament-glow" filter="url(#glow1)" stroke-width="14"/>
+          <path id="path-waveform-line" class="filament-stroke" stroke-width="2"/>
+        </svg>
+      </div>
+      <div class="controls">
+        <div class="control"><label>Drive</label><input type="range" min="0" max="100" value="45"><span class="value">45%</span></div>
+        <div class="control"><label>Intensity</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Tone</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Mix</label><input type="range" min="0" max="100" value="100"><span class="value">100%</span></div>
+      </div>
+    </div>
+
+    <!-- Option 2: Spectrum (freq X, amplitude Y) -->
+    <div class="card" data-option="2">
+      <div class="card-header">NEON SATURATION</div>
+      <div class="card-label">Option 2 — Filament = Spectrum (frequency → amplitude)</div>
+      <div class="bulb-area" id="bulb-spectrum">
+        <svg viewBox="0 0 280 110" preserveAspectRatio="none">
+          <g id="spectrum-bars"></g>
+        </svg>
+      </div>
+      <div class="controls">
+        <div class="control"><label>Drive</label><input type="range" min="0" max="100" value="45"><span class="value">45%</span></div>
+        <div class="control"><label>Intensity</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Tone</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Mix</label><input type="range" min="0" max="100" value="100"><span class="value">100%</span></div>
+      </div>
+    </div>
+
+    <!-- Option 3: Spectrogram (time vs frequency heatmap) -->
+    <div class="card" data-option="3">
+      <div class="card-header">NEON SATURATION</div>
+      <div class="card-label">Option 3 — Filament = Spectrogram (time × frequency, intensity)</div>
+      <div class="bulb-area" id="bulb-spectrogram">
+        <svg viewBox="0 0 280 110" preserveAspectRatio="none">
+          <g id="spectrogram-grid"></g>
+        </svg>
+      </div>
+      <div class="controls">
+        <div class="control"><label>Drive</label><input type="range" min="0" max="100" value="45"><span class="value">45%</span></div>
+        <div class="control"><label>Intensity</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Tone</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Mix</label><input type="range" min="0" max="100" value="100"><span class="value">100%</span></div>
+      </div>
+    </div>
+
+    <!-- Option 4: Bulb silhouette + waveform inside -->
+    <div class="card" data-option="4">
+      <div class="card-header">NEON SATURATION</div>
+      <div class="card-label">Option 4 — Bulb silhouette, waveform as filament</div>
+      <div class="bulb-area" id="bulb-silhouette">
+        <svg viewBox="0 0 280 110" preserveAspectRatio="xMidYMid meet">
+          <!-- Bulb outline: circle + neck -->
+          <path fill="none" stroke="var(--plugin-border)" stroke-width="1.5" opacity="0.6"
+                d="M140 22 a 38 38 0 0 1 0 76 38 38 0 0 1 0 -76 v 12 a 26 26 0 0 0 0 52 26 26 0 0 0 0 -52 z M128 98 h24 v8 h-24 z"/>
+          <path id="path-filament" class="filament-glow" filter="url(#glow1)" stroke-width="10"/>
+          <path id="path-filament-line" class="filament-stroke" stroke-width="1.8"/>
+        </svg>
+      </div>
+      <div class="controls">
+        <div class="control"><label>Drive</label><input type="range" min="0" max="100" value="45"><span class="value">45%</span></div>
+        <div class="control"><label>Intensity</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Tone</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Mix</label><input type="range" min="0" max="100" value="100"><span class="value">100%</span></div>
+      </div>
+    </div>
+
+    <!-- Option 5: Horizontal tube, waveform through middle -->
+    <div class="card" data-option="5">
+      <div class="card-header">NEON SATURATION</div>
+      <div class="card-label">Option 5 — Tube (preferred). Drive=shape, Intensity=glow+thickness, Tone=smooth↔wiggly, Mix=dry/wet (0%=no saturation/filament off, 100%=full/filament on)</div>
+      <div class="bulb-area" id="bulb-tube">
+        <svg viewBox="0 0 280 110" preserveAspectRatio="none">
+          <!-- Tube: rounded rect -->
+          <rect x="8" y="38" width="264" height="34" rx="17" fill="none" stroke="var(--plugin-border)" stroke-width="1.5" opacity="0.6"/>
+          <path id="path-tube-wave" class="filament-glow" filter="url(#glow1)" stroke-width="12"/>
+          <path id="path-tube-line" class="filament-stroke" stroke-width="2"/>
+        </svg>
+      </div>
+      <div class="controls">
+        <div class="control"><label>Drive</label><input type="range" min="0" max="100" value="45"><span class="value">45%</span></div>
+        <div class="control"><label>Intensity</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Tone</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Mix</label><input type="range" min="0" max="100" value="100"><span class="value">100%</span></div>
+      </div>
+    </div>
+
+    <!-- Option 6: Waveform + integrated level (VU-style) strip -->
+    <div class="card" data-option="6">
+      <div class="card-header">NEON SATURATION</div>
+      <div class="card-label">Option 6 — Waveform filament + level strip (VU integration)</div>
+      <div class="bulb-area" id="bulb-waveform-vu" style="display: flex;">
+        <div style="flex: 1; position: relative;">
+          <svg viewBox="0 0 220 110" preserveAspectRatio="none" style="width:100%; height:100%;">
+            <path id="path-vu-wave-glow" class="filament-glow" filter="url(#glow1)" stroke-width="12"/>
+            <path id="path-vu-wave" class="filament-stroke" stroke-width="2"/>
+          </svg>
+        </div>
+        <div id="vu-strip" style="width: 28px; margin: 8px 6px 8px 0; background: var(--plugin-raised); border-radius: 4px; display: flex; flex-direction: column-reverse; gap: 2px; padding: 4px;"></div>
+      </div>
+      <div class="controls">
+        <div class="control"><label>Drive</label><input type="range" min="0" max="100" value="45"><span class="value">45%</span></div>
+        <div class="control"><label>Intensity</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Tone</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+        <div class="control"><label>Mix</label><input type="range" min="0" max="100" value="100"><span class="value">100%</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Read sliders from a card: returns { drive, intensity, tone, mix } in 0..1
+    function getSliders(card) {
+      const inputs = card.querySelectorAll('.control input[type="range"]');
+      const v = (i) => (parseInt(inputs[i]?.value || 50, 10) / 100);
+      return { drive: v(0), intensity: v(1), tone: v(2), mix: v(3) };
+    }
+    function updateValueDisplays(card) {
+      card.querySelectorAll('.control input[type="range"]').forEach((input, i) => {
+        const val = input.value;
+        const span = input.closest('.control').querySelector('.value');
+        if (span) span.textContent = val + '%';
+      });
+    }
+
+    // Shared: fake waveform — drive adds harmonics/saturation (squash), mix scales amplitude
+    function waveformPoints(n, t, drive, mix) {
+      mix = mix !== undefined ? mix : 1;
+      drive = drive !== undefined ? drive : 0.5;
+      const points = [];
+      for (let i = 0; i <= n; i++) {
+        const x = i / n;
+        let y = Math.sin(4 * Math.PI * x + t * 2) * 0.6 +
+          Math.sin(8 * Math.PI * x + t * 1.3) * 0.3 * (0.5 + drive * 0.5) +
+          Math.sin(2 * Math.PI * x + t * 0.7) * 0.2;
+        // Soft clip / saturation: more drive = more squash
+        const gain = 1 + drive * 2;
+        y = Math.tanh(y * gain) / Math.tanh(gain);
+        y = 0.5 + 0.4 * y * mix;
+        points.push([x, y]);
+      }
+      return points;
+    }
+
+    function pathFromPoints(points, w, h, yScale) {
+      yScale = yScale || 1;
+      return points.map((p, i) => (i === 0 ? 'M' : 'L') +
+        (p[0] * w).toFixed(1) + ',' + (p[1] * h * yScale).toFixed(1)).join(' ');
+    }
+
+    // Tube (Option 5): full-scale waveform; drive = saturation shape (pronounced), tone = smooth (0) vs wiggly (1)
+    function tubeWaveformPoints(n, t, drive, tone) {
+      const points = [];
+      for (let i = 0; i <= n; i++) {
+        const x = i / n;
+        const low = Math.sin(2 * Math.PI * x + t * 0.7) * 0.6 + Math.sin(4 * Math.PI * x + t * 2) * 0.3;
+        const high = Math.sin(8 * Math.PI * x + t * 1.3) * 0.5 + Math.sin(16 * Math.PI * x + t * 0.9) * 0.35 + Math.sin(24 * Math.PI * x + t * 1.1) * 0.15;
+        let y = low * (1 - tone) + high * tone;
+        const gain = 1 + drive * 5;
+        y = Math.tanh(y * gain) / Math.tanh(gain);
+        points.push([x, 0.5 + 0.42 * y]);
+      }
+      return points;
+    }
+
+    // Option 1: Waveform in box — Drive = saturation shape, Intensity = glow, Mix = amplitude
+    (function() {
+      const card = document.querySelector('.card[data-option="1"]');
+      const pathGlow = document.getElementById('path-waveform');
+      const pathLine = document.getElementById('path-waveform-line');
+      const w = 280, h = 110;
+      card.querySelectorAll('input[type="range"]').forEach(inp => inp.addEventListener('input', () => updateValueDisplays(card)));
+      function tick(t) {
+        const s = getSliders(card);
+        const pts = waveformPoints(120, t * 0.001, s.drive, s.mix);
+        const d = pathFromPoints(pts, w, h);
+        pathGlow.setAttribute('d', d);
+        pathLine.setAttribute('d', d);
+        pathGlow.setAttribute('opacity', 0.15 + 0.35 * s.intensity);
+        pathLine.setAttribute('opacity', 0.6 + 0.4 * s.mix);
+      }
+      let t = 0;
+      setInterval(() => { t += 80; tick(t); }, 80);
+      tick(0);
+    })();
+
+    // Option 2: Spectrum bars — Drive = level + harmonics, Tone = tilt (bass vs treble), Intensity = scale, Mix = overall
+    (function() {
+      const card = document.querySelector('.card[data-option="2"]');
+      const n = 24;
+      const g = document.getElementById('spectrum-bars');
+      const w = 280, h = 110;
+      const barW = (w - 16) / n - 2;
+      for (let i = 0; i < n; i++) {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('class', 'spectrum-bar');
+        rect.setAttribute('x', 8 + i * (barW + 2));
+        g.appendChild(rect);
+      }
+      card.querySelectorAll('input[type="range"]').forEach(inp => inp.addEventListener('input', () => updateValueDisplays(card)));
+      function tick(t) {
+        const s = getSliders(card);
+        const bars = g.querySelectorAll('rect');
+        bars.forEach((r, i) => {
+          const norm = i / (n - 1);
+          const toneTilt = s.tone < 0.5 ? 1 - norm * (1 - s.tone * 2) : norm * (s.tone - 0.5) * 2 + 0.5;
+          const base = 0.3 + 0.7 * Math.max(0, Math.sin(t * 0.003 + i * 0.4) * 0.5 + 0.5);
+          const height = 15 + 70 * (base * (0.5 + s.drive) * toneTilt * s.mix * (0.5 + s.intensity * 0.5));
+          r.setAttribute('y', 110 - height);
+          r.setAttribute('width', barW);
+          r.setAttribute('height', height);
+          r.setAttribute('opacity', 0.6 + 0.4 * s.intensity);
+        });
+      }
+      let t = 0;
+      setInterval(() => { t += 50; tick(t); }, 50);
+      tick(0);
+    })();
+
+    // Option 3: Spectrogram — Drive = intensity, Tone = high vs low freq balance, Intensity = contrast, Mix = brightness
+    (function() {
+      const card = document.querySelector('.card[data-option="3"]');
+      const cols = 32, rows = 12;
+      const g = document.getElementById('spectrogram-grid');
+      const cellW = 280 / cols, cellH = 110 / rows;
+      for (let r = 0; r < rows; r++)
+        for (let c = 0; c < cols; c++) {
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('class', 'spectrogram-cell');
+          rect.setAttribute('x', c * cellW);
+          rect.setAttribute('y', r * cellH);
+          rect.setAttribute('width', cellW + 0.5);
+          rect.setAttribute('height', cellH + 0.5);
+          g.appendChild(rect);
+        }
+      const cells = g.querySelectorAll('rect');
+      card.querySelectorAll('input[type="range"]').forEach(inp => inp.addEventListener('input', () => updateValueDisplays(card)));
+      function tick(t) {
+        const s = getSliders(card);
+        cells.forEach((cell, i) => {
+          const col = i % cols, row = Math.floor(i / cols);
+          const freqBias = s.tone < 0.5 ? 1 - row / rows * (1 - s.tone * 2) : row / rows * (s.tone - 0.5) * 2 + 0.5;
+          const raw = 0.5 + 0.5 * Math.sin(t * 0.002 + col * 0.3 + row * 0.5);
+          const v = (0.2 + 0.7 * raw * (0.5 + s.drive) * freqBias * s.mix) * (0.5 + s.intensity * 0.5);
+          const R = Math.round(232 + (255 - 232) * v);
+          const G = Math.round(85 + (144 - 85) * v);
+          const B = Math.round(144);
+          cell.setAttribute('fill', `rgba(${R},${G},${B},${0.3 + 0.6 * v})`);
+        });
+      }
+      let t = 0;
+      setInterval(() => { t += 60; tick(t); }, 60);
+      tick(0);
+    })();
+
+    // Option 4: Bulb silhouette — waveform scaled into circle; sliders same as Option 1
+    (function() {
+      const card = document.querySelector('.card[data-option="4"]');
+      const pathGlow = document.getElementById('path-filament');
+      const pathLine = document.getElementById('path-filament-line');
+      const cx = 140, cy = 60, r = 36;
+      card.querySelectorAll('input[type="range"]').forEach(inp => inp.addEventListener('input', () => updateValueDisplays(card)));
+      function tick(t) {
+        const s = getSliders(card);
+        const pts = waveformPoints(80, t * 0.001, s.drive, s.mix);
+        const pathPts = pts.map((p, i) => {
+          const angle = Math.PI * 0.2 + (p[0] * Math.PI * 0.6);
+          const rad = r * (0.4 + 0.6 * p[1]);
+          return [cx + Math.cos(angle) * rad, cy - Math.sin(angle) * rad];
+        });
+        const d = pathPts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+        pathGlow.setAttribute('d', d);
+        pathLine.setAttribute('d', d);
+        pathGlow.setAttribute('opacity', 0.2 + 0.35 * s.intensity);
+        pathLine.setAttribute('opacity', 0.6 + 0.4 * s.mix);
+      }
+      let t = 0;
+      setInterval(() => { t += 80; tick(t); }, 80);
+      tick(0);
+    })();
+
+    // Option 5: Tube — Drive=shape, Intensity=glow+thickness, Tone=smooth↔wiggly, Mix=dry/wet (0=filament off, 100%=on). Use style so CSS opacity doesn't block Mix.
+    (function() {
+      const card = document.querySelector('.card[data-option="5"]');
+      const pathGlow = document.getElementById('path-tube-wave');
+      const pathLine = document.getElementById('path-tube-line');
+      const w = 280, h = 110, cy = 55;
+      card.querySelectorAll('input[type="range"]').forEach(inp => inp.addEventListener('input', () => updateValueDisplays(card)));
+      function tick(t) {
+        const s = getSliders(card);
+        const pts = tubeWaveformPoints(100, t * 0.001, s.drive, s.tone);
+        const d = pts.map((p, i) => (i === 0 ? 'M' : 'L') + (p[0] * w).toFixed(1) + ',' + (cy + (p[1] - 0.5) * 28).toFixed(1)).join(' ');
+        pathGlow.setAttribute('d', d);
+        pathLine.setAttribute('d', d);
+        // Mix = dry/wet: 0% = filament fully off, 100% = fully on. Inline style overrides CSS .filament-* opacity.
+        pathLine.style.opacity = s.mix;
+        pathGlow.style.opacity = s.mix * (0.05 + 0.95 * s.intensity);
+        // Intensity: 0% = thin line, no glow. 100% = thick line + big glow (very pronounced)
+        pathGlow.setAttribute('stroke-width', 1 + 38 * s.intensity);
+        pathLine.setAttribute('stroke-width', 0.4 + 4 * s.intensity);
+      }
+      let t = 0;
+      setInterval(() => { t += 80; tick(t); }, 80);
+      tick(0);
+    })();
+
+    // Option 6: Waveform + VU strip — Drive/Mix = waveform; Intensity + Mix = VU level
+    (function() {
+      const card = document.querySelector('.card[data-option="6"]');
+      const pathGlow = document.getElementById('path-vu-wave-glow');
+      const pathLine = document.getElementById('path-vu-wave');
+      const vuStrip = document.getElementById('vu-strip');
+      const w = 220, h = 110;
+      const segs = 12;
+      for (let i = 0; i < segs; i++) {
+        const seg = document.createElement('div');
+        seg.style.height = '6px';
+        seg.style.borderRadius = '2px';
+        seg.style.background = 'var(--plugin-border)';
+        seg.style.transition = 'background 0.1s';
+        vuStrip.appendChild(seg);
+      }
+      const segEls = vuStrip.querySelectorAll('div');
+      card.querySelectorAll('input[type="range"]').forEach(inp => inp.addEventListener('input', () => updateValueDisplays(card)));
+      function tick(t) {
+        const s = getSliders(card);
+        const pts = waveformPoints(100, t * 0.001, s.drive, s.mix);
+        const d = pathFromPoints(pts, w, h);
+        pathGlow.setAttribute('d', d);
+        pathLine.setAttribute('d', d);
+        pathGlow.setAttribute('opacity', 0.15 + 0.35 * s.intensity);
+        pathLine.setAttribute('opacity', 0.6 + 0.4 * s.mix);
+        const baseLevel = 0.5 + 0.5 * Math.sin(t * 0.002) * 0.6;
+        const level = baseLevel * (0.3 + 0.7 * s.mix) * (0.5 + 0.5 * s.intensity);
+        const lit = Math.round(level * segs);
+        segEls.forEach((seg, i) => {
+          seg.style.background = i < lit ? (i < segs * 0.8 ? 'var(--ombic-teal)' : 'var(--neon-pink)') : 'var(--plugin-border)';
+        });
+      }
+      let t = 0;
+      setInterval(() => { t += 80; tick(t); }, 80);
+      tick(0);
+    })();
+  </script>
+</body>
+</html>

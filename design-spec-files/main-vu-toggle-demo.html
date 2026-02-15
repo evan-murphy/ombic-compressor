@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Main VU toggle — Fancy (default) / Simple</title>
+  <style>
+    :root {
+      --ombic-red:     #ff001f;
+      --ombic-blue:    #076dc3;
+      --ombic-teal:    #338fab;
+      --ombic-yellow:  #ffce00;
+      --plugin-bg:     #0f1220;
+      --plugin-surface: #181c2e;
+      --plugin-raised:  #222840;
+      --plugin-text:   #e6e9ef;
+      --plugin-muted:  #6b7280;
+      --plugin-border: rgba(230, 233, 239, 0.2);
+      --scope-bg:      #080a12;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--plugin-bg);
+      color: var(--plugin-text);
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+      color: var(--plugin-text);
+    }
+    .intro {
+      color: var(--plugin-muted);
+      font-size: 0.875rem;
+      margin-bottom: 20px;
+      max-width: 640px;
+    }
+    .rationale {
+      background: var(--plugin-raised);
+      border: 1px solid var(--plugin-border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      font-size: 0.8rem;
+      color: var(--plugin-muted);
+      max-width: 640px;
+    }
+    .rationale strong { color: var(--plugin-text); }
+    .card {
+      background: var(--plugin-surface);
+      border: 1px solid var(--plugin-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      max-width: 520px;
+    }
+    .card-header {
+      background: var(--ombic-blue);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 10px 14px;
+    }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--plugin-border);
+      background: var(--plugin-raised);
+    }
+    .toggle-row span {
+      font-size: 0.75rem;
+      color: var(--plugin-muted);
+    }
+    .toggle-btns {
+      display: flex;
+      gap: 0;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--plugin-border);
+    }
+    .toggle-btns button {
+      padding: 6px 14px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      background: var(--scope-bg);
+      color: var(--plugin-muted);
+      transition: background 0.15s, color 0.15s;
+    }
+    .toggle-btns button:first-child {
+      border-right: 1px solid var(--plugin-border);
+    }
+    .toggle-btns button.active {
+      background: var(--ombic-blue);
+      color: white;
+    }
+    .toggle-btns button:not(.active):hover {
+      background: var(--plugin-surface);
+      color: var(--plugin-text);
+    }
+    .vu-area {
+      min-height: 160px;
+      margin: 12px;
+      background: var(--scope-bg);
+      border-radius: 10px;
+      border: 1px solid var(--plugin-border);
+      position: relative;
+      overflow: hidden;
+    }
+    .vu-area svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .vu-area .view-transfer { display: block; }
+    .vu-area .view-simple { display: none; }
+    .vu-area.simple-vu .view-transfer { display: none; }
+    .vu-area.simple-vu .view-simple { display: block; }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true"><defs><filter id="mainGlow"><feGaussianBlur stdDeviation="2"/></filter></defs></svg>
+  <h1>Main VU — Toggle demo</h1>
+  <p class="intro">Default: <strong>Fancy</strong> (transfer curve with live dot and In/GR/Out readouts). Toggle to <strong>Simple</strong> for a classic arc meter. Matches the pattern of plugins like FabFilter Pro-C 2, which use a central animated display by default and can switch to traditional meters.</p>
+
+  <div class="rationale">
+    <strong>Reference:</strong> FabFilter Pro-C 2 makes the main meter the focal point with a large, animated display that combines transfer curve (knee), input/output relationship, and gain reduction in one view; the horizontal axis is input dB, vertical is output, with the curve turning green with signal. Hiding that display reveals traditional horizontal meters. HoRNet and Avid use a similar split (graphical transfer + GR meter). This demo implements the same idea: <strong>Fancy</strong> = integrated curve + readouts (Option 3), <strong>Simple</strong> = vintage-style arcs (Option 9) for users who prefer a classic meter.
+  </div>
+
+  <div class="card">
+    <div class="card-header">MAIN VU</div>
+    <div class="toggle-row">
+      <span>Display</span>
+      <div class="toggle-btns">
+        <button type="button" id="btn-transfer" class="active" aria-pressed="true">Fancy</button>
+        <button type="button" id="btn-simple" aria-pressed="false">Simple</button>
+      </div>
+    </div>
+    <div class="vu-area" id="vu-area">
+      <!-- Default: Fancy — transfer curve (Option 3) -->
+      <div class="view-transfer" style="position: absolute; inset: 0;">
+        <svg viewBox="0 0 280 160" preserveAspectRatio="none" style="width:100%; height:100%;">
+          <line x1="20" y1="140" x2="100" y2="20" stroke="var(--plugin-border)" stroke-width="1" stroke-dasharray="4 2"/>
+          <path id="curve" fill="none" stroke="var(--ombic-red)" stroke-width="2"/>
+          <circle id="dot" r="6" fill="var(--ombic-teal)" stroke="white" stroke-width="1.5"/>
+          <text x="12" y="18" fill="var(--plugin-muted)" font-size="9">out</text>
+          <text x="255" y="152" fill="var(--plugin-muted)" font-size="9">in</text>
+        </svg>
+        <div id="readouts" style="position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 28px; font-size: 0.75rem;"></div>
+      </div>
+      <!-- Alternate: Simple — arc meter (Option 9) -->
+      <div class="view-simple" style="position: absolute; inset: 0;">
+        <svg viewBox="0 0 280 160" preserveAspectRatio="xMidYMid meet" style="width:100%; height:100%;">
+          <path d="M 40 130 A 100 100 0 0 1 240 130" fill="none" stroke="var(--plugin-border)" stroke-width="8"/>
+          <path id="in-arc" d="M 40 130 A 100 100 0 0 1 240 130" fill="none" stroke="var(--ombic-blue)" stroke-width="8" stroke-dasharray="157 314" stroke-linecap="round"/>
+          <path id="out-arc" d="M 40 130 A 100 100 0 0 1 240 130" fill="none" stroke="var(--ombic-teal)" stroke-width="8" stroke-dasharray="120 314" stroke-linecap="round"/>
+          <rect id="gr-bar" x="100" y="72" width="0" height="16" rx="2" fill="var(--ombic-red)"/>
+          <text x="140" y="118" fill="var(--plugin-muted)" font-size="9" text-anchor="middle">In</text>
+          <text x="140" y="130" fill="var(--plugin-muted)" font-size="9" text-anchor="middle">Out</text>
+          <text x="140" y="142" fill="var(--plugin-muted)" font-size="9" text-anchor="middle">GR</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const vuArea = document.getElementById('vu-area');
+      const btnTransfer = document.getElementById('btn-transfer');
+      const btnSimple = document.getElementById('btn-simple');
+
+      function setMode(simple) {
+        vuArea.classList.toggle('simple-vu', simple);
+        btnTransfer.classList.toggle('active', !simple);
+        btnSimple.classList.toggle('active', simple);
+        btnTransfer.setAttribute('aria-pressed', !simple);
+        btnSimple.setAttribute('aria-pressed', simple);
+      }
+      btnTransfer.addEventListener('click', () => setMode(false));
+      btnSimple.addEventListener('click', () => setMode(true));
+
+      const dbToNorm = (db) => Math.max(0, Math.min(1, (db + 60) / 60));
+      const grToNorm = (db) => Math.max(0, Math.min(1, db / 20));
+
+      function updateTransferCurve(inNorm, outNorm, inDb, grDb, outDb) {
+        const curve = document.getElementById('curve');
+        if (curve) {
+          const curvePts = [];
+          for (let i = 0; i <= 20; i++) {
+            const x = 20 + (i / 20) * 240;
+            const inN = i / 20;
+            const outN = inN > 0.5 ? 0.5 + (inN - 0.5) * 0.4 : inN;
+            const y = 140 - outN * 120;
+            curvePts.push([x, y]);
+          }
+          curve.setAttribute('d', curvePts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' '));
+        }
+        const dot = document.getElementById('dot');
+        if (dot) {
+          const x = 20 + inNorm * 240, y = 140 - outNorm * 120;
+          dot.setAttribute('cx', x);
+          dot.setAttribute('cy', y);
+        }
+        const readouts = document.getElementById('readouts');
+        if (readouts) {
+          readouts.innerHTML = '<span style="color: var(--ombic-blue)">In ' + (inDb | 0) + ' dB</span><span style="color: var(--ombic-red)">GR ' + grDb.toFixed(1) + ' dB</span><span style="color: var(--ombic-teal)">Out ' + (outDb | 0) + ' dB</span>';
+        }
+      }
+
+      function updateSimpleVU(inNorm, grNorm, outNorm) {
+        const arcLen = 157;
+        document.getElementById('in-arc')?.setAttribute('stroke-dasharray', (arcLen * inNorm) + ' 314');
+        document.getElementById('out-arc')?.setAttribute('stroke-dasharray', (arcLen * outNorm) + ' 314');
+        const grWidth = grNorm * 80;
+        const grBar = document.getElementById('gr-bar');
+        if (grBar) {
+          grBar.setAttribute('width', grWidth);
+          grBar.setAttribute('x', 140 - grWidth / 2);
+        }
+      }
+
+      let t = 0;
+      setInterval(() => {
+        t += 60;
+        const inDb = -12 + 8 * Math.sin(t * 0.001);
+        const grDb = 2 + 4 * Math.sin(t * 0.0007);
+        const outDb = inDb - grDb;
+        const inNorm = dbToNorm(inDb);
+        const grNorm = grToNorm(grDb);
+        const outNorm = dbToNorm(outDb);
+
+        updateTransferCurve(inNorm, outNorm, inDb, grDb, outDb);
+        updateSimpleVU(inNorm, grNorm, outNorm);
+      }, 80);
+
+      updateTransferCurve(0.5, 0.45, -12, 2.5, -14.5);
+      updateSimpleVU(0.5, 0.125, 0.45);
+    })();
+  </script>
+</body>
+</html>
