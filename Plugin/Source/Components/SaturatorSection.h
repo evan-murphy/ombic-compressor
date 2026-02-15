@@ -22,6 +22,10 @@ public:
     juce::Slider& getToneSlider() { return toneSlider; }
     juce::Slider& getMixSlider() { return mixSlider; }
 
+    /** Re-apply 0–100% display for all four sliders. Call after SliderAttachments are created so
+     *  the UI always shows human-readable percentages (e.g. "50%") instead of 0–1.0. */
+    void applyPercentDisplay();
+
     bool isInteracting() const;
     void setHighlight(bool on);
 

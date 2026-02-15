@@ -67,6 +67,9 @@ OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
     neonMixAttachment = std::make_unique<SliderAttachment>(
         apvts, OmbicCompressorProcessor::paramNeonMix, saturatorSection.getMixSlider());
 
+    // Ensure 0–100% display for Neon knobs (params are 0–1; show "50%" not "0.5")
+    saturatorSection.applyPercentDisplay();
+
     updateModeVisibility();
     startTimerHz(25);
 
@@ -144,11 +147,12 @@ namespace
 {
     const int kHeaderH = 38;
     const int kFooterH = 26;
-    // ~80% VU / ~20% knobs: reserve fixed height for controls strip, VU takes the rest
-    const int kControlsStripH = 96;
+    // Controls-first: strip gets enough height so sections are NOT compact (>= 110px) and knobs are usable
+    const int kControlsStripH = 180;
+    const int kMainVuMinH = 80;
     inline int getMainVuHeight(int contentAreaHeight)
     {
-        return juce::jmax(120, contentAreaHeight - kControlsStripH);
+        return juce::jmax(kMainVuMinH, contentAreaHeight - kControlsStripH);
     }
 }
 

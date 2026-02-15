@@ -125,9 +125,10 @@ void OutputSection::resized()
     const int headerH = compact ? 22 : 28;
     r.removeFromTop(headerH);
     r.reduce(compact ? 8 : 18, compact ? 8 : 18);
-    const int meterW = compact ? 12 : 22;
-    const int meterH = compact ? 40 : 88;
-    const int knobSize = compact ? 44 : 68;
+    // Spec §8: meter 6px wide, 80px tall
+    const int meterW = 6;
+    const int meterH = compact ? 40 : 80;
+    const int knobSize = compact ? 44 : 64;   // Usability: output knob prominent
     const int gap = compact ? 8 : 14;
     const int labelH = compact ? 10 : 18;
     const int meterLabelH = compact ? 8 : 12;

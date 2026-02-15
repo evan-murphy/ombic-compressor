@@ -167,7 +167,7 @@ void SidechainFilterSection::resized()
         freqResponseDisplay_.setBounds(0, 0, 0, 0);
     }
 
-    const int knobSize = compact ? 50 : 62;
+    const int knobSize = compact ? 50 : 68;   // SC freq knob: visible, easy to grab
     const int listenW = compact ? 28 : 32;
     const int listenH = compact ? 20 : 24;
     const int labelH = compact ? 10 : 14;

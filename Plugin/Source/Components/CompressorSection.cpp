@@ -114,7 +114,7 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
     addAndMakeVisible(grMeter);
     grReadoutLabel.setText("0.0 dB", juce::dontSendNotification);
     grReadoutLabel.setJustificationType(juce::Justification::centred);
-    grReadoutLabel.setFont(OmbicLookAndFeel::getOmbicFontForPainting(14.0f, true));
+    grReadoutLabel.setFont(OmbicLookAndFeel::getOmbicFontForPainting(12.0f, true));  // Secondary to knobs
     addAndMakeVisible(grReadoutLabel);
 }
 
@@ -189,7 +189,7 @@ void CompressorSection::resized()
     r.removeFromBottom(bodyPad);
 
     const int labelH = compact ? 12 : 18;
-    const int gap = compact ? 10 : 22;
+    const int gap = compact ? 10 : 16;  // Spec §6: 16px gap between FET knobs
     modeCombo.setBounds(0, 0, 1, 1);
     int x = r.getX();
     bool fetVisible = ratioSlider.isVisible();
@@ -205,8 +205,8 @@ void CompressorSection::resized()
         sl.setBounds(x, r.getY() + labelH, size, size);
         x += size + gap;
     };
-    const int knobSizeOpto = compact ? 52 : 88;
-    const int knobSizeFet = compact ? 46 : 72;
+    const int knobSizeOpto = compact ? 52 : 88;   // Usability: knobs are primary; Opto 88px
+    const int knobSizeFet = compact ? 46 : 72;   // FET 72px so controls are easy to use
     if (fetVisible)
     {
         placeKnob(thresholdSlider, thresholdLabel, knobSizeFet);
@@ -223,8 +223,8 @@ void CompressorSection::resized()
         x = threshX + knobSizeOpto + gap;
     }
 
-    const int grMeterW = compact ? 20 : 28;
-    const int grReadoutH = compact ? 14 : 22;
+    const int grMeterW = compact ? 20 : 24;
+    const int grReadoutH = compact ? 14 : 18;   // Keep GR readout secondary to knobs
     int knobH = fetVisible ? knobSizeFet : knobSizeOpto;
     grMeter.setBounds(x + gap, r.getY() + labelH, grMeterW, juce::jmax(20, knobH - grReadoutH));
     grReadoutLabel.setBounds(x + gap, r.getY() + labelH + juce::jmax(20, knobH - grReadoutH), grMeterW + 8, grReadoutH);

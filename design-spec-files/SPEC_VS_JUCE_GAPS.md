@@ -8,10 +8,13 @@
 
 - **Default size:** 900×480 (spec §1). Was 980×540; now matches spec and fits REAPER.
 - **Main VU height:** 100px (was 172). Frees vertical space for module knobs.
+- **Main VU readouts:** Compact centered row (fixed-width labels + gap), not 1/3 width each; small font per main-vu-toggle-demo.html.
+- **High impact (spec match):** Output meters 6×80px (§8); Opto 80px, FET 60px, Output knob 56px (§5); Compressor FET gap 16px (§6).
 - **Pills row:** 32px height, 26px pill height; grid gap 12px; bottom padding 16px.
 - **Saturator:** Scope 82px, body padding 14px; knobs 48px, gap 14px (spec §7).
 - **Compressor:** Body padding 14px (spec §4).
 - **Resize limits:** Minimum 900×480 so users can’t shrink below usable height.
+- **Knob display:** Any 0–1 parameter must show as **0–100%** in the UI (e.g. Neon Drive/Intensity/Tone/Mix). Use slider textFromValue/valueFromText and call `SaturatorSection::applyPercentDisplay()` after attachments so the display is not overwritten.
 
 ---
 
@@ -48,10 +51,10 @@
 | Item | Spec | JUCE | Action |
 |------|------|------|--------|
 | Sweep angles | 240° (150°–390°); GUIDE -2.356, 2.356 rad | setRotaryParameters(-2.356f, 2.356f, true) | Done |
-| Opto threshold | 80px diameter | 84px | Reduce to 80 to match spec. |
-| FET knobs | 60px | 66px | Reduce to 60. |
+| Opto threshold | 80px diameter | 80px | Done |
+| FET knobs | 60px | 60px | Done |
 | Saturation knobs | 48px | 48px | Done |
-| Output knob | 56px | 60px | Reduce to 56. |
+| Output knob | 56px | 56px | Done |
 | Stroke / glow / pointer | Per GUIDE | drawRotarySlider per GUIDE | Done |
 | Accent colours | Blue / #e85590 / Purple / Teal | setColour(rotarySliderFillColourId) | Done |
 
@@ -71,8 +74,8 @@
 
 | Item | Spec / HTML | JUCE | Action |
 |------|-------------|------|--------|
-| Meter width | 6px | 22px | **Change to 6px** so meters match HTML/spec. |
-| Meter height | 80px | 88px | Reduce to 80px. |
+| Meter width | 6px | 6px | Done |
+| Meter height | 80px | 80px | Done |
 | GR value | 16px, 900, color-coded | 16px bold, color-coded | OK. |
 
 ---
@@ -93,7 +96,7 @@
 | Item | Spec | JUCE | Action |
 |------|------|------|--------|
 | Opto: single 80px threshold | 80px centered | 84px | Use 80px. |
-| FET: 60px, 16px gap | 60px, 16px gap | 66px, 22px gap | Use 60px knobs, 16px gap. |
+| FET: 60px, 16px gap | 60px, 16px gap | 60px, 16px gap | Done |
 | GR meter in card | — | Present | OK. |
 | Curve in card | 90px tall | Only in Main VU | Optional: add 90px curve block inside Compressor card for spec match. |
 
@@ -110,10 +113,10 @@
 
 ## Summary: what’s left to feel “complete” vs spec/HTML
 
-**High impact (visual match)**  
-1. **Output meters:** Width 6px, height 80px (spec §8 / HTML).  
-2. **Knob sizes:** Opto 80px, FET 60px, Output 56px (spec §5).  
-3. **Compressor FET:** 16px gap between knobs (spec §6).
+**High impact (visual match)** — *done*  
+1. ~~**Output meters:** Width 6px, height 80px (spec §8 / HTML).~~  
+2. ~~**Knob sizes:** Opto 80px, FET 60px, Output 56px (spec §5).~~  
+3. ~~**Compressor FET:** 16px gap between knobs (spec §6).~~
 
 **Medium impact**  
 4. **Output module body padding:** 14px (spec §4).  

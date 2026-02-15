@@ -178,6 +178,7 @@ SaturatorSection::SaturatorSection(OmbicCompressorProcessor& processor)
     const juce::Colour textCol = OmbicLookAndFeel::pluginText();
     const juce::Colour labelCol = OmbicLookAndFeel::pluginMuted();
     const juce::Font labelFont = OmbicLookAndFeel::getOmbicFontForPainting(9.0f, true);
+    // UX: show 0–100% for 0–1 parameters so users see "50%" not "0.5" (human-readable, not binary)
     auto percentFromValue = [](double v) { return juce::String(static_cast<int>(v * 100.0 + 0.5)) + "%"; };
     auto valueFromPercent = [](const juce::String& t) {
         return t.trim().trimCharactersAtEnd("%").getFloatValue() / 100.0;
@@ -249,6 +250,20 @@ SaturatorSection::SaturatorSection(OmbicCompressorProcessor& processor)
     mixLabel.setColour(juce::Label::textColourId, labelCol);
     mixLabel.setFont(labelFont);
     addAndMakeVisible(mixLabel);
+}
+
+void SaturatorSection::applyPercentDisplay()
+{
+    auto percentFromValue = [](double v) { return juce::String(static_cast<int>(v * 100.0 + 0.5)) + "%"; };
+    auto valueFromPercent = [](const juce::String& t) {
+        return t.trim().trimCharactersAtEnd("%").getFloatValue() / 100.0;
+    };
+    for (juce::Slider* sl : { &driveSlider, &intensitySlider, &toneSlider, &mixSlider })
+    {
+        sl->textFromValueFunction = [percentFromValue](double v) { return percentFromValue(v); };
+        sl->valueFromTextFunction = [valueFromPercent](const juce::String& t) { return valueFromPercent(t); };
+        sl->setNumDecimalPlacesToDisplay(0);
+    }
 }
 
 SaturatorSection::~SaturatorSection()
