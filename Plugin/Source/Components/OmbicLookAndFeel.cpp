@@ -11,6 +11,7 @@ OmbicLookAndFeel::OmbicLookAndFeel()
     setColour(juce::Slider::textBoxTextColourId, pluginText());
     setColour(juce::Slider::textBoxBackgroundColourId, pluginRaised());
     setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+    setColour(juce::Slider::rotarySliderFillColourId, ombicBlue());
 }
 
 juce::File OmbicLookAndFeel::findStyleFolder()
@@ -124,6 +125,28 @@ void OmbicLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& but
 {
     auto bounds = button.getLocalBounds().toFloat();
     const bool isPill = button.getName().contains("Pill");
+    const bool isMainVuToggle = button.getName().contains("main_vu_");
+
+    if (isMainVuToggle)
+    {
+        const bool selected = button.getToggleState();
+        const float radius = 6.0f;
+        if (selected)
+        {
+            g.setColour(ombicBlue());
+            g.fillRoundedRectangle(bounds, radius);
+            g.setColour(ombicBlue());
+            g.drawRoundedRectangle(bounds.reduced(1.0f), radius - 1.0f, 2.0f);
+        }
+        else
+        {
+            g.setColour(juce::Colours::transparentBlack);
+            g.fillRoundedRectangle(bounds, radius);
+            g.setColour(isMouseOver ? ombicBlue() : pluginBorderStrong());
+            g.drawRoundedRectangle(bounds.reduced(1.0f), radius - 1.0f, 2.0f);
+        }
+        return;
+    }
 
     if (isPill)
     {
@@ -294,71 +317,60 @@ void OmbicLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int wid
 }
 
 void OmbicLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
-                                        float sliderPos, float startAngle, float endAngle,
+                                        float sliderPos, float rotaryStartAngle, float rotaryEndAngle,
                                         juce::Slider& slider)
 {
-    // Spec §5: 240° sweep (150°–390° from top clockwise; 0°=top). Standard coords: top=90°, so 150° from top = 300°, 390° from top = 60°.
-    constexpr float pi = juce::MathConstants<float>::pi;
-    const float startRad = (90.0f - 150.0f) * (pi / 180.0f);  // 300° standard = 5pi/3
-    const float endRad   = (90.0f - 390.0f) * (pi / 180.0f);  // 60° standard = pi/3 (wrap)
-    const float endRadNorm = endRad + 2.0f * pi;              // 60° = pi/3
+    // GUIDE §2: Use slider's rotary angles (setRotaryParameters(-2.356f, 2.356f, true) = 240° sweep).
+    // JUCE: 0 = 12 o'clock, positive = clockwise.
+    auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat();
+    auto centre = bounds.getCentre();
+    auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) / 2.0f - 4.0f;
+    auto lineW = (radius > 30.0f) ? 5.0f : 4.0f;
+    auto arcRadius = radius - lineW * 0.5f;
 
-    float side = static_cast<float>(juce::jmin(width, height));
-    float left = static_cast<float>(x) + (static_cast<float>(width) - side) * 0.5f;
-    float top  = static_cast<float>(y) + (static_cast<float>(height) - side) * 0.5f;
-    auto bounds = juce::Rectangle<float>(left, top, side, side);
+    auto toAngle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
 
-    const float strokeW = side <= 56 ? 4.0f : 5.0f;
-    const float innerMargin = strokeW * 1.2f;
-    auto inner = bounds.reduced(innerMargin);
-    const float cx = inner.getCentreX();
-    const float cy = inner.getCentreY();
-    const float r = inner.getWidth() * 0.5f;
+    juce::Colour accent = slider.findColour(juce::Slider::rotarySliderFillColourId);
 
-    juce::Colour accent = ombicBlue();
-    if (slider.getName().contains("sc") || slider.getName().contains("sidechain"))
-        accent = ombicTeal();
-    else if (slider.getName().contains("saturation") || slider.getName().contains("drive")
-        || slider.getName().contains("intensity") || slider.getName().contains("tone") || slider.getName().contains("mix"))
-        accent = juce::Colour(0xFFe85590);
-    else if (slider.getName().contains("output"))
-        accent = ombicPurple();
-
-    float angle = startRad + sliderPos * (endRadNorm - startRad);
-
-    // Track: full 240° arc, 8% white
-    juce::Path trackPath;
-    trackPath.addCentredArc(cx, cy, r, r, 0, startRad, endRadNorm, true);
+    juce::Path trackArc;
+    trackArc.addCentredArc(centre.x, centre.y, arcRadius, arcRadius,
+                           0.0f, rotaryStartAngle, rotaryEndAngle, true);
     g.setColour(knobTrack());
-    g.strokePath(trackPath, juce::PathStrokeType(strokeW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.strokePath(trackArc, juce::PathStrokeType(lineW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-    // Value arc: glow (wider, 15% opacity) and fill
-    juce::Path valuePath;
-    valuePath.addCentredArc(cx, cy, r, r, 0, startRad, angle, true);
-    g.setColour(accent.withAlpha(0.15f));
-    g.strokePath(valuePath, juce::PathStrokeType(strokeW + 6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-    // Value arc: accent colour
-    g.setColour(accent);
-    g.strokePath(valuePath, juce::PathStrokeType(strokeW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-    // Center circle: pluginRaised, 1px border
-    const float centerR = r - strokeW * 1.5f;
-    if (centerR > 2.0f)
+    if (sliderPos > 0.005f)
     {
-        g.setColour(pluginRaised());
-        g.fillEllipse(cx - centerR, cy - centerR, centerR * 2.0f, centerR * 2.0f);
-        g.setColour(juce::Colour(0x0fffffff));
-        g.drawEllipse(cx - centerR, cy - centerR, centerR * 2.0f, centerR * 2.0f, 1.0f);
+        juce::Path glowArc;
+        glowArc.addCentredArc(centre.x, centre.y, arcRadius, arcRadius,
+                              0.0f, rotaryStartAngle, toAngle, true);
+        g.setColour(accent.withAlpha(0.15f));
+        g.strokePath(glowArc, juce::PathStrokeType(lineW + 6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+        juce::Path valueArc;
+        valueArc.addCentredArc(centre.x, centre.y, arcRadius, arcRadius,
+                              0.0f, rotaryStartAngle, toAngle, true);
+        g.setColour(accent);
+        g.strokePath(valueArc, juce::PathStrokeType(lineW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     }
 
-    // Pointer dot at current angle (r=2.5–3px)
-    const float dotR = side >= 70 ? 3.0f : 2.5f;
-    const float dotDist = r - strokeW * 0.5f;
-    const float dx = cx + dotDist * std::cos(angle);
-    const float dy = cy - dotDist * std::sin(angle);
+    auto innerRadius = arcRadius - lineW - 2.0f;
+    if (innerRadius > 2.0f)
+    {
+        g.setColour(pluginRaised());
+        g.fillEllipse(centre.x - innerRadius, centre.y - innerRadius, innerRadius * 2.0f, innerRadius * 2.0f);
+        g.setColour(juce::Colour(0x0fffffff));
+        g.drawEllipse(centre.x - innerRadius, centre.y - innerRadius, innerRadius * 2.0f, innerRadius * 2.0f, 1.0f);
+    }
+
+    // GUIDE §2: pointer at toAngle — sin for x, -cos for y (0 = top, clockwise)
+    auto pointerRadius = (radius > 30.0f) ? 3.0f : 2.5f;
+    auto pointerDistance = innerRadius - (radius > 30.0f ? 8.0f : 5.0f);
+    juce::Point<float> pointerPos(
+        centre.x + pointerDistance * std::sin(toAngle),
+        centre.y - pointerDistance * std::cos(toAngle));
     g.setColour(accent);
-    g.fillEllipse(dx - dotR, dy - dotR, dotR * 2.0f, dotR * 2.0f);
+    g.fillEllipse(pointerPos.x - pointerRadius, pointerPos.y - pointerRadius,
+                  pointerRadius * 2.0f, pointerRadius * 2.0f);
 }
 
 void OmbicLookAndFeel::drawGroupComponentOutline(juce::Graphics& g, int width, int height,

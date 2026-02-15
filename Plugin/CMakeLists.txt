@@ -66,6 +66,7 @@ target_sources(OmbicCompressor
         Source/Components/SidechainFilterSection.cpp
         Source/Components/MeterStrip.cpp
         Source/Components/TransferCurveComponent.cpp
+        Source/Components/MainVuComponent.cpp
         Source/Emulation/DataLoader.cpp
         Source/Emulation/MeasuredCompressor.cpp
         Source/Emulation/FRCharacter.cpp

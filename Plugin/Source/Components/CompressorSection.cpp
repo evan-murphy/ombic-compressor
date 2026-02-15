@@ -9,7 +9,8 @@ void CompressorSection::GainReductionMeterComponent::paint(juce::Graphics& g)
 {
     float grDb = processor.gainReductionDb.load();
     smoothedGrDb_ += 0.12f * (grDb - smoothedGrDb_); // ~300 ms ballistics
-    float norm = juce::jlimit(0.0f, 1.0f, smoothedGrDb_ / 20.0f);
+    const float grFullScaleDb = 40.0f;  // 40 dB = full scale so meter doesn't peg with heavy compression
+    float norm = juce::jlimit(0.0f, 1.0f, smoothedGrDb_ / grFullScaleDb);
     auto b = getLocalBounds().toFloat();
     g.setColour(OmbicLookAndFeel::line());
     g.fillRoundedRectangle(b, 4.0f);
@@ -23,7 +24,6 @@ void CompressorSection::GainReductionMeterComponent::paint(juce::Graphics& g)
 CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
     : proc(processor)
     , grMeter(processor)
-    , transferCurve_(processor)
 {
     setLookAndFeel(&ombicLf);
 
@@ -35,7 +35,6 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
     modeLabel.setText("Mode", juce::dontSendNotification);
     modeLabel.attachToComponent(&modeCombo, true);
     modeLabel.setVisible(false);
-    addAndMakeVisible(transferCurve_);
 
     compressLimitCombo.addItem("Compress", 1);
     compressLimitCombo.addItem("Limit", 2);
@@ -58,6 +57,8 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
     compressLimitLabel.setFont(labelFont);
     thresholdSlider.setName("compressor");
     thresholdSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    thresholdSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    thresholdSlider.setColour(juce::Slider::rotarySliderFillColourId, OmbicLookAndFeel::ombicBlue());
     thresholdSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 52, 18);
     thresholdSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
     thresholdSlider.setVelocityBasedMode(false);
@@ -70,6 +71,8 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
 
     ratioSlider.setName("compressor");
     ratioSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    ratioSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    ratioSlider.setColour(juce::Slider::rotarySliderFillColourId, OmbicLookAndFeel::ombicBlue());
     ratioSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 52, 18);
     ratioSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
     ratioSlider.setVelocityBasedMode(false);
@@ -82,6 +85,8 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
 
     attackSlider.setName("compressor");
     attackSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    attackSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    attackSlider.setColour(juce::Slider::rotarySliderFillColourId, OmbicLookAndFeel::ombicBlue());
     attackSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 52, 18);
     attackSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
     attackSlider.setVelocityBasedMode(false);
@@ -94,6 +99,8 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
 
     releaseSlider.setName("compressor");
     releaseSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    releaseSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    releaseSlider.setColour(juce::Slider::rotarySliderFillColourId, OmbicLookAndFeel::ombicBlue());
     releaseSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 52, 18);
     releaseSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
     releaseSlider.setVelocityBasedMode(false);
@@ -162,44 +169,44 @@ void CompressorSection::paint(juce::Graphics& g)
     g.fillRoundedRectangle(b, 16.0f);
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawRoundedRectangle(b, 16.0f, 2.0f);
-    auto headerRect = b.removeFromTop(36.0f);
+    const float headerH = getHeight() < 110 ? 22.0f : 28.0f;
+    auto headerRect = b.removeFromTop(headerH);
     g.setColour(OmbicLookAndFeel::ombicBlue());
-    g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + 36.0f), 16.0f);
+    g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + headerH), 16.0f);
     g.setColour(juce::Colours::white);
-    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(13.0f, true));
-    g.drawText("COMPRESSOR", static_cast<int>(headerRect.getX()) + 14, static_cast<int>(headerRect.getY()) + 8, 200, 20, juce::Justification::left);
+    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(11.0f, true));
+    g.drawText("COMPRESSOR", static_cast<int>(headerRect.getX()) + 12, static_cast<int>(headerRect.getY() + (headerH - 11.0f) * 0.5f), 200, 14, juce::Justification::left);
 }
 
 void CompressorSection::resized()
 {
     auto r = getLocalBounds();
-    r.removeFromTop(36); // header
-    const int bodyPad = 14;
+    const bool compact = (r.getHeight() < 110);
+    const int headerH = compact ? 22 : 28;
+    r.removeFromTop(headerH);
+    const int bodyPad = compact ? 8 : 14;
     r.reduce(bodyPad, 0);
     r.removeFromBottom(bodyPad);
 
-    // Spec §6: transfer curve full card width × 90px, margin bottom 14px
-    transferCurve_.setBounds(r.getX(), r.getY(), r.getWidth(), 90);
-    r.removeFromTop(90 + 14);
-
-    const int labelH = 18;
-    const int gap = 16;  // Spec §6: 16px gap between knob groups
+    const int labelH = compact ? 12 : 18;
+    const int gap = compact ? 10 : 22;
     modeCombo.setBounds(0, 0, 1, 1);
     int x = r.getX();
     bool fetVisible = ratioSlider.isVisible();
     if (!fetVisible)
     {
-        compressLimitLabel.setBounds(x, r.getY(), 120, labelH);
-        compressLimitCombo.setBounds(x, r.getY() + labelH, 120, 28);
-        x += 120 + gap;
+        const int limitW = compact ? 72 : 120;
+        compressLimitLabel.setBounds(x, r.getY(), limitW, labelH);
+        compressLimitCombo.setBounds(x, r.getY() + labelH, limitW, compact ? 20 : 28);
+        x += limitW + gap;
     }
     auto placeKnob = [&](juce::Slider& sl, juce::Label& lb, int size) {
         lb.setBounds(x, r.getY(), size + gap, labelH);
         sl.setBounds(x, r.getY() + labelH, size, size);
         x += size + gap;
     };
-    const int knobSizeOpto = 80;
-    const int knobSizeFet = 60;
+    const int knobSizeOpto = compact ? 52 : 88;
+    const int knobSizeFet = compact ? 46 : 72;
     if (fetVisible)
     {
         placeKnob(thresholdSlider, thresholdLabel, knobSizeFet);
@@ -209,7 +216,6 @@ void CompressorSection::resized()
     }
     else
     {
-        // Spec §6 Opto: single 80px threshold centered in remaining space
         int optoAreaW = r.getWidth() - (x - r.getX());
         int threshX = x + (optoAreaW - knobSizeOpto) / 2;
         thresholdLabel.setBounds(threshX, r.getY(), knobSizeOpto + gap, labelH);
@@ -217,18 +223,17 @@ void CompressorSection::resized()
         x = threshX + knobSizeOpto + gap;
     }
 
-    const int grMeterW = 24;
-    const int grReadoutH = 20;
+    const int grMeterW = compact ? 20 : 28;
+    const int grReadoutH = compact ? 14 : 22;
     int knobH = fetVisible ? knobSizeFet : knobSizeOpto;
-    grMeter.setBounds(x + gap, r.getY() + labelH, grMeterW, knobH - grReadoutH);
-    grReadoutLabel.setBounds(x + gap, r.getY() + labelH + knobH - grReadoutH, grMeterW + 8, grReadoutH);
+    grMeter.setBounds(x + gap, r.getY() + labelH, grMeterW, juce::jmax(20, knobH - grReadoutH));
+    grReadoutLabel.setBounds(x + gap, r.getY() + labelH + juce::jmax(20, knobH - grReadoutH), grMeterW + 8, grReadoutH);
 
-    // Spec §5: Opto — large param value (20px); FET — 14px
     if (!fetVisible)
-        thresholdSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 56, 24);
+        thresholdSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, compact ? 44 : 56, compact ? 16 : 24);
     else
-        thresholdSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 52, 18);
-    float valueFontSize = fetVisible ? 14.0f : 20.0f;
+        thresholdSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, compact ? 40 : 52, compact ? 14 : 18);
+    float valueFontSize = fetVisible ? (compact ? 12.0f : 14.0f) : (compact ? 14.0f : 20.0f);
     for (int i = 0; i < thresholdSlider.getNumChildComponents(); ++i)
     {
         if (auto* lb = dynamic_cast<juce::Label*>(thresholdSlider.getChildComponent(i)))

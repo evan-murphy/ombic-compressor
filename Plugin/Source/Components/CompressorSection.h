@@ -2,8 +2,6 @@
 
 #include <JuceHeader.h>
 #include "OmbicLookAndFeel.h"
-#include "TransferCurveComponent.h"
-
 class OmbicCompressorProcessor;
 
 /** Compressor controls + mode selector + GR meter. */
@@ -60,8 +58,6 @@ private:
         OmbicCompressorProcessor& processor;
         float smoothedGrDb_ = 0.0f; // VU-style ballistics
     } grMeter;
-
-    TransferCurveComponent transferCurve_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CompressorSection)
 };

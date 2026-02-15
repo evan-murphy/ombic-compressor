@@ -53,6 +53,7 @@ const char* OmbicCompressorProcessor::paramNeonSaturationAfter = "neon_saturatio
 const char* OmbicCompressorProcessor::paramOptoCompressLimit   = "opto_compress_limit";
 const char* OmbicCompressorProcessor::paramScFrequency        = "sc_frequency";
 const char* OmbicCompressorProcessor::paramScListen             = "sc_listen";
+const char* OmbicCompressorProcessor::paramMainVuDisplay        = "main_vu_display";
 
 //==============================================================================
 juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::createParameterLayout()
@@ -172,6 +173,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::cr
         "SC Listen",
         false));
 
+    // Main VU display: 0 = Fancy (transfer curve + readouts), 1 = Simple (arc meter)
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{ paramMainVuDisplay, 1 },
+        "Main VU Display",
+        juce::StringArray{ "Fancy", "Simple" },
+        0));
+
     return layout;
 }
 
@@ -237,6 +245,15 @@ bool OmbicCompressorProcessor::getScopeSidechainSamples(std::vector<float>& out)
     if (scopeSidechainBuffer_.empty())
         return false;
     out = scopeSidechainBuffer_;
+    return true;
+}
+
+bool OmbicCompressorProcessor::getScopeWaveformSamples(std::vector<float>& out) const
+{
+    const juce::ScopedLock sl(scopeWaveformLock_);
+    if (scopeWaveformBuffer_.empty())
+        return false;
+    out = scopeWaveformBuffer_;
     return true;
 }
 
@@ -418,11 +435,14 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         for (int ch = 0; ch < numChannels && ch < 2; ++ch)
             buffer.copyFrom(ch, 0, sidechainStereoForListen_, ch, 0, numSamples);
         // Copy sidechain for Neon scope (thread-safe for UI)
-        const juce::ScopedLock sl(scopeSidechainLock_);
-        scopeSidechainBuffer_.resize(static_cast<size_t>(numSamples));
-        const float* mono = sidechainMonoBuffer_.getReadPointer(0);
-        for (int i = 0; i < numSamples; ++i)
-            scopeSidechainBuffer_[static_cast<size_t>(i)] = mono[i];
+        {
+            const juce::ScopedLock sl(scopeSidechainLock_);
+            scopeSidechainBuffer_.resize(static_cast<size_t>(numSamples));
+            const float* readPtr = sidechainMonoBuffer_.getReadPointer(0);
+            for (int i = 0; i < numSamples; ++i)
+                scopeSidechainBuffer_[static_cast<size_t>(i)] = readPtr[i];
+        }
+        { const juce::ScopedLock wfSl(scopeWaveformLock_); scopeWaveformBuffer_.clear(); }
     }
     else
     {
@@ -432,6 +452,24 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         }
         float makeupGain = std::pow(10.0f, makeupDb / 20.0f);
         buffer.applyGain(makeupGain);
+        // Copy main output (mono) for Neon tube scope so it can follow the waveform
+        const juce::ScopedLock wfSl(scopeWaveformLock_);
+        scopeWaveformBuffer_.resize(static_cast<size_t>(numSamples));
+        if (numChannels >= 1)
+        {
+            const float* L = buffer.getReadPointer(0);
+            if (numChannels >= 2)
+            {
+                const float* R = buffer.getReadPointer(1);
+                for (int i = 0; i < numSamples; ++i)
+                    scopeWaveformBuffer_[static_cast<size_t>(i)] = 0.5f * (L[i] + R[i]);
+            }
+            else
+            {
+                for (int i = 0; i < numSamples; ++i)
+                    scopeWaveformBuffer_[static_cast<size_t>(i)] = L[i];
+            }
+        }
     }
 
     sumSq = 0.0f;

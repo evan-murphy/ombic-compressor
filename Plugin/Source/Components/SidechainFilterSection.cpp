@@ -3,8 +3,7 @@
 #include <cmath>
 
 //==============================================================================
-SidechainFilterSection::FrequencyResponseDisplay::FrequencyResponseDisplay(OmbicCompressorProcessor& p)
-    : proc_(&p)
+SidechainFilterSection::FrequencyResponseDisplay::FrequencyResponseDisplay(OmbicCompressorProcessor&)
 {
 }
 
@@ -23,8 +22,6 @@ void SidechainFilterSection::FrequencyResponseDisplay::paint(juce::Graphics& g)
     const bool off = frequencyHz_ <= 20.0f;
 
     auto inner = b.reduced(4.0f);
-    const float w = inner.getWidth();
-    const float h = inner.getHeight();
 
     juce::Path path;
     bool started = false;
@@ -47,7 +44,7 @@ void SidechainFilterSection::FrequencyResponseDisplay::paint(juce::Graphics& g)
         return;
     }
 
-    auto magnitudeDb = [this](float freq) -> float {
+    auto magnitudeDb = [this, dbMin](float freq) -> float {
         if (freq <= 0) return dbMin;
         float u2 = (freq / frequencyHz_) * (freq / frequencyHz_);
         float magSq = (u2 * u2) / (1.0f + u2 * u2);
@@ -101,6 +98,8 @@ SidechainFilterSection::SidechainFilterSection(OmbicCompressorProcessor& process
 
     frequencySlider_.setName("sc_freq");
     frequencySlider_.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    frequencySlider_.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    frequencySlider_.setColour(juce::Slider::rotarySliderFillColourId, OmbicLookAndFeel::ombicTeal());
     frequencySlider_.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
     frequencySlider_.setRange(20.0, 500.0, 1.0);
     frequencySlider_.setValue(20.0);
@@ -137,36 +136,47 @@ void SidechainFilterSection::paint(juce::Graphics& g)
     g.fillRoundedRectangle(b, 16.0f);
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawRoundedRectangle(b, 16.0f, 2.0f);
-    auto headerRect = b.removeFromTop(36.0f);
+    const float headerH = getHeight() < 110 ? 22.0f : 28.0f;
+    auto headerRect = b.removeFromTop(headerH);
     g.setColour(OmbicLookAndFeel::ombicTeal());
-    g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + 36.0f), 16.0f);
+    g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + headerH), 16.0f);
     g.setColour(juce::Colours::white);
-    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(13.0f, true));
-    g.drawText("SC FILTER", static_cast<int>(headerRect.getX()) + 14, static_cast<int>(headerRect.getY()) + 8, 120, 20, juce::Justification::left);
+    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(11.0f, true));
+    g.drawText("SC FILTER", static_cast<int>(headerRect.getX()) + 12, static_cast<int>((headerH - 11.0f) * 0.5f), 120, 14, juce::Justification::left);
 }
 
 void SidechainFilterSection::resized()
 {
     auto r = getLocalBounds();
-    r.removeFromTop(36);
-    const int bodyPad = 14;
+    const bool compact = (r.getHeight() < 110);
+    const int headerH = compact ? 22 : 28;
+    r.removeFromTop(headerH);
+    const int bodyPad = compact ? 8 : 18;
     r.reduce(bodyPad, 0);
     r.removeFromBottom(bodyPad);
 
-    const int respH = 48;
-    const int marginBottom = 14;
-    freqResponseDisplay_.setBounds(r.getX(), r.getY(), r.getWidth(), respH);
-    r.removeFromTop(respH + marginBottom);
+    const int respH = compact ? 0 : 52;
+    const int marginBottom = compact ? 0 : 18;
+    if (respH > 0)
+    {
+        freqResponseDisplay_.setBounds(r.getX(), r.getY(), r.getWidth(), respH);
+        r.removeFromTop(respH + marginBottom);
+    }
+    else
+    {
+        freqResponseDisplay_.setBounds(0, 0, 0, 0);
+    }
 
-    const int knobSize = 56;
-    const int listenW = 32;
-    const int listenH = 24;
+    const int knobSize = compact ? 50 : 62;
+    const int listenW = compact ? 28 : 32;
+    const int listenH = compact ? 20 : 24;
+    const int labelH = compact ? 10 : 14;
     int x = r.getX();
-    frequencyLabel_.setBounds(x, r.getY(), knobSize + 20, 14);
-    frequencySlider_.setBounds(x, r.getY() + 14, knobSize, knobSize);
-    frequencyValueLabel_.setBounds(x, r.getY() + 14 + knobSize, knobSize, 18);
-    int listenX = x + knobSize + 12;
-    int listenY = r.getY() + 14 + (knobSize - listenH) / 2;
+    frequencyLabel_.setBounds(x, r.getY(), knobSize + 20, labelH);
+    frequencySlider_.setBounds(x, r.getY() + labelH, knobSize, knobSize);
+    frequencyValueLabel_.setBounds(x, r.getY() + labelH + knobSize, knobSize, compact ? 12 : 18);
+    int listenX = x + knobSize + 8;
+    int listenY = r.getY() + labelH + (knobSize - listenH) / 2;
     listenButton_.setBounds(listenX, listenY, listenW, listenH);
 }
 
@@ -183,7 +193,3 @@ void SidechainFilterSection::timerCallback()
     }
     freqResponseDisplay_.repaint();
 }
-</think>
-Fixing the duplicate variable and formula in the file.
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-StrReplace

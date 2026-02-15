@@ -55,6 +55,8 @@ OutputSection::OutputSection(OmbicCompressorProcessor& processor)
     addAndMakeVisible(grLabel_);
     outputSlider.setName("output");
     outputSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    outputSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    outputSlider.setColour(juce::Slider::rotarySliderFillColourId, OmbicLookAndFeel::ombicPurple());
     outputSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 52, 18);
     outputSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
     outputSlider.setVelocityBasedMode(false);
@@ -107,25 +109,28 @@ void OutputSection::paint(juce::Graphics& g)
     g.fillRoundedRectangle(b, 16.0f);
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawRoundedRectangle(b, 16.0f, 2.0f);
-    auto headerRect = b.removeFromTop(36.0f);
+    const float headerH = getHeight() < 110 ? 22.0f : 28.0f;
+    auto headerRect = b.removeFromTop(headerH);
     g.setColour(OmbicLookAndFeel::ombicPurple());
-    g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + 36.0f), 16.0f);
+    g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + headerH), 16.0f);
     g.setColour(juce::Colours::white);
-    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(13.0f, true));
-    g.drawText("OUTPUT", static_cast<int>(headerRect.getX()) + 14, static_cast<int>(headerRect.getY()) + 8, 200, 20, juce::Justification::left);
+    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(11.0f, true));
+    g.drawText("OUTPUT", static_cast<int>(headerRect.getX()) + 12, static_cast<int>((headerH - 11.0f) * 0.5f), 200, 14, juce::Justification::left);
 }
 
 void OutputSection::resized()
 {
     auto r = getLocalBounds();
-    r.removeFromTop(36);
-    r.reduce(14, 14);
-    const int meterW = 6;
-    const int meterH = 80;
-    const int knobSize = 56;
-    const int gap = 10;
-    const int labelH = 18;
-    const int meterLabelH = 12;
+    const bool compact = (r.getHeight() < 110);
+    const int headerH = compact ? 22 : 28;
+    r.removeFromTop(headerH);
+    r.reduce(compact ? 8 : 18, compact ? 8 : 18);
+    const int meterW = compact ? 12 : 22;
+    const int meterH = compact ? 40 : 88;
+    const int knobSize = compact ? 44 : 68;
+    const int gap = compact ? 8 : 14;
+    const int labelH = compact ? 10 : 18;
+    const int meterLabelH = compact ? 8 : 12;
     const int minRowW = meterW + gap + knobSize + gap + meterW;
     int rowW = juce::jmin(r.getWidth(), minRowW);
     int startX = r.getX() + (r.getWidth() - rowW) / 2;
@@ -138,7 +143,7 @@ void OutputSection::resized()
     x += knobSize + gap;
     outMeter_.setBounds(x, r.getY() + labelH, meterW, meterH);
     outLabel_.setBounds(x - 2, r.getY() + labelH + meterH + 2, meterW + 4, meterLabelH);
-    const int grValueH = 22;
+    const int grValueH = compact ? 14 : 22;
     grLabel_.setBounds(r.getX(), r.getY() + labelH + meterH + 4, r.getWidth(), meterLabelH);
     grReadoutLabel_.setBounds(r.getX(), r.getY() + labelH + meterH + 4 + meterLabelH, r.getWidth(), grValueH);
 }

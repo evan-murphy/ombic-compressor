@@ -28,7 +28,6 @@ private:
         void paint(juce::Graphics& g) override;
         void setFrequencyHz(float hz) { frequencyHz_ = hz; }
     private:
-        OmbicCompressorProcessor* proc_ = nullptr;
         float frequencyHz_ = 20.0f;
     };
 

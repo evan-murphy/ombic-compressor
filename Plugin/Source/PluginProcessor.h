@@ -64,12 +64,16 @@ public:
     static const char* paramOptoCompressLimit;
     static const char* paramScFrequency;
     static const char* paramScListen;
+    static const char* paramMainVuDisplay;
 
     /** True when SC Listen is active (for header indicator). */
     bool isScListenActive() const;
 
     /** Copy of latest sidechain buffer for scope when Listen is on. Returns true if out was filled (Listen active and we have samples). Call from message thread only. */
     bool getScopeSidechainSamples(std::vector<float>& out) const;
+
+    /** Copy of latest main output (mono) for Neon scope when Listen is off. Returns true if out was filled. Call from message thread only. */
+    bool getScopeWaveformSamples(std::vector<float>& out) const;
 
 private:
     std::atomic<bool> curveDataLoaded_{ false };
@@ -94,12 +98,14 @@ private:
     juce::SmoothedValue<float> smoothedScFrequency_;
     juce::AudioBuffer<float> sidechainMonoBuffer_;
     juce::AudioBuffer<float> sidechainStereoForListen_;
-    float listenCrossfade_ = 0.0f;  // 0 = main, 1 = listen
     void updateSidechainFilterCoeffs(float frequencyHz);
 
     // Scope: when Listen is on, copy latest sidechain block for Neon scope (audio thread writes, message thread reads)
     mutable juce::CriticalSection scopeSidechainLock_;
     std::vector<float> scopeSidechainBuffer_;
+    // Scope: when Listen is off, copy latest main output (mono) so Neon tube can show real waveform
+    mutable juce::CriticalSection scopeWaveformLock_;
+    std::vector<float> scopeWaveformBuffer_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OmbicCompressorProcessor)
 };

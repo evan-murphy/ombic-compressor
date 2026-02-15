@@ -10,6 +10,7 @@ OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
     , saturatorSection(p)
     , outputSection(p)
     , meterStrip(p)
+    , mainVu_(p)
 {
     setLookAndFeel(&ombicLf);
     const int specW = 900;
@@ -34,6 +35,7 @@ OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
     addAndMakeVisible(saturatorSection);
     addAndMakeVisible(outputSection);
     addAndMakeVisible(meterStrip);
+    addAndMakeVisible(mainVu_);
 
     auto& apvts = processorRef.getValueTreeState();
 
@@ -86,17 +88,17 @@ void OmbicCompressorEditor::timerCallback()
     if (contentW_ > 0)
     {
         const int gridGap = 12;
-        const int minScFilterW = 120;
-        const int minOutW = 100;
+        const int minScFilterW = 130;
+        const int minOutW = 110;
         int available = contentW_ - 3 * gridGap;
         float scFr = 0.55f;
         int modeIndex = compressorSection.getModeCombo().getSelectedId() == 2 ? 1 : 0;
         float compFr = modeIndex == 0 ? 0.85f : 1.5f;
-        float neonFr = modeIndex == 0 ? 1.6f : 1.3f;
+        float neonFr = modeIndex == 0 ? 2.2f : 1.8f;   // neon bulb gets more width for bigger knobs
         float outFr = modeIndex == 0 ? 0.7f : 0.6f;
         float total = scFr + compFr + neonFr + outFr;
         int tScFilter = juce::jmax(minScFilterW, static_cast<int>(available * (scFr / total)));
-        int tComp = juce::jmax(320, static_cast<int>(available * (compFr / total)));
+        int tComp = juce::jmax(340, static_cast<int>(available * (compFr / total)));
         int tNeon = static_cast<int>(available * (neonFr / total));
         int tOut = available - tScFilter - tComp - tNeon;
         if (tOut < minOutW) { tOut = minOutW; tNeon = available - tScFilter - tComp - tOut; }
@@ -104,7 +106,7 @@ void OmbicCompressorEditor::timerCallback()
         animCompW_ += (static_cast<float>(tComp) - animCompW_) * animRate_;
         animNeonW_ += (static_cast<float>(tNeon) - animNeonW_) * animRate_;
         animOutW_ += (static_cast<float>(tOut) - animOutW_) * animRate_;
-        applyColumnLayout(static_cast<int>(animScFilterW_ + 0.5f), static_cast<int>(animCompW_ + 0.5f), static_cast<int>(animNeonW_ + 0.5f), static_cast<int>(animOutW_ + 0.5f));
+        applyColumnLayout(static_cast<int>(animScFilterW_ + 0.5f), static_cast<int>(animCompW_ + 0.5f), static_cast<int>(animNeonW_ + 0.5f), static_cast<int>(animOutW_ + 0.5f), mainVuH_);
     }
 
     bool curveLoaded = processorRef.hasCurveDataLoaded();
@@ -141,7 +143,13 @@ void OmbicCompressorEditor::updateModeVisibility()
 namespace
 {
     const int kHeaderH = 38;
-    const int kFooterH = 28;
+    const int kFooterH = 26;
+    // ~80% VU / ~20% knobs: reserve fixed height for controls strip, VU takes the rest
+    const int kControlsStripH = 96;
+    inline int getMainVuHeight(int contentAreaHeight)
+    {
+        return juce::jmax(120, contentAreaHeight - kControlsStripH);
+    }
 }
 
 void OmbicCompressorEditor::paint(juce::Graphics& g)
@@ -173,24 +181,22 @@ void OmbicCompressorEditor::paint(juce::Graphics& g)
     g.setColour(OmbicLookAndFeel::pluginShadow());
     g.fillRoundedRectangle(full.toFloat().translated(8.0f, 8.0f), 20.0f);
 
-    // §9 Header: pluginSurface, quiet — "Ombic" pluginMuted, "Compressor" pluginText 90%, "● Curve OK" ombicTeal
+    // §9 Header: ombicRed bg, "OMBIC COMPRESSOR" 18px weight 900 white, "● Curve OK" 10px weight 900
     auto headerRect = full.removeFromTop(kHeaderH);
-    g.setColour(OmbicLookAndFeel::pluginSurface());
+    g.setColour(OmbicLookAndFeel::ombicRed());
     g.fillRect(headerRect);
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawHorizontalLine(kHeaderH - 1, 0.0f, static_cast<float>(w));
-    g.setColour(OmbicLookAndFeel::pluginMuted());
-    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(14.0f, true));
-    g.drawText("Ombic", 12, 0, 60, kHeaderH, juce::Justification::left);
-    g.setColour(OmbicLookAndFeel::pluginText().withAlpha(0.9f));
-    g.drawText("Compressor", 68, 0, 180, kHeaderH, juce::Justification::left);
+    g.setColour(juce::Colours::white);
+    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(18.0f, true));
+    g.drawText("OMBIC COMPRESSOR", 12, 0, 220, kHeaderH, juce::Justification::left);
     g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(10.0f, true));
     if (processorRef.isScListenActive())
     {
-        g.setColour(OmbicLookAndFeel::ombicTeal());
+        g.setColour(juce::Colours::white);
         g.drawText("\u25CF SC LISTEN", w - 200, 0, 90, kHeaderH, juce::Justification::right);
     }
-    g.setColour(OmbicLookAndFeel::ombicTeal());
+    g.setColour(juce::Colours::white);
     if (processorRef.hasCurveDataLoaded())
         g.drawText("\u25CF Curve OK", w - 100, 0, 90, kHeaderH, juce::Justification::right);
     else
@@ -207,7 +213,7 @@ void OmbicCompressorEditor::paint(juce::Graphics& g)
     g.drawText("STEREO", footerRect.getRight() - 55, footerRect.getY(), 50, footerRect.getHeight(), juce::Justification::right);
 }
 
-void OmbicCompressorEditor::applyColumnLayout(int scFilterW, int compW, int neonW, int outW)
+void OmbicCompressorEditor::applyColumnLayout(int scFilterW, int compW, int neonW, int outW, int mainVuH)
 {
     const int gridGap = 12;
     int x = contentX_;
@@ -219,6 +225,7 @@ void OmbicCompressorEditor::applyColumnLayout(int scFilterW, int compW, int neon
     x += neonW + gridGap;
     outputSection.setBounds(x, contentY_, outW, contentH_);
     meterStrip.setBounds(0, 0, 0, 0);
+    mainVu_.setBounds(mainVuX_, mainVuY_, mainVuW_, mainVuH);
 }
 
 void OmbicCompressorEditor::resized()
@@ -231,11 +238,12 @@ void OmbicCompressorEditor::resized()
     const int shadowOff = 8;
 
     r.removeFromTop(kHeaderH);
-    auto pillsRow = r.removeFromTop(36).reduced(gridPadH, 0);
+    auto pillsRow = r.removeFromTop(32).reduced(gridPadH, 0);
     pillsRow.removeFromLeft(gridPadH);
-    const int pillW = 80;
+    const int pillW = 84;
+    const int pillGap = 12;
     optoPill_.setBounds(pillsRow.getX(), pillsRow.getY(), pillW, 26);
-    fetPill_.setBounds(pillsRow.getX() + pillW + 8, pillsRow.getY(), pillW, 26);
+    fetPill_.setBounds(pillsRow.getX() + pillW + pillGap, pillsRow.getY(), pillW, 26);
 
     r.removeFromTop(gridGap);
     auto content = r.withTrimmedBottom(footerH).reduced(gridPadH, 0);
@@ -243,22 +251,29 @@ void OmbicCompressorEditor::resized()
     content.removeFromBottom(shadowOff + gridPadBottom);
     content.removeFromRight(shadowOff);
 
+    const int contentTotalH = content.getHeight();
+    const int mainVuH = getMainVuHeight(contentTotalH);
+    mainVuX_ = content.getX();
+    mainVuY_ = content.getY();
+    mainVuW_ = content.getWidth();
     contentX_ = content.getX();
-    contentY_ = content.getY();
-    contentH_ = content.getHeight();
-    int available = content.getWidth() - 3 * gridGap;
+    contentY_ = content.getY() + mainVuH;
+    contentH_ = contentTotalH - mainVuH;
+    mainVuH_ = mainVuH;
+    const int numGaps = 3;
+    int available = content.getWidth() - numGaps * gridGap;
     contentW_ = content.getWidth();
 
     const float scFr = 0.55f;
     int modeIndex = compressorSection.getModeCombo().getSelectedId() == 2 ? 1 : 0;
     float compFr = modeIndex == 0 ? 0.85f : 1.5f;
-    float neonFr = modeIndex == 0 ? 1.6f : 1.3f;
+    float neonFr = modeIndex == 0 ? 2.2f : 1.8f;   // neon bulb gets more width for bigger knobs
     float outFr = modeIndex == 0 ? 0.7f : 0.6f;
     float total = scFr + compFr + neonFr + outFr;
-    const int minScFilterW = 120;
-    const int minOutW = 100;
+    const int minScFilterW = 130;
+    const int minOutW = 110;
     int scFilterW = juce::jmax(minScFilterW, static_cast<int>(available * (scFr / total)));
-    int compW = juce::jmax(320, static_cast<int>(available * (compFr / total)));
+    int compW = juce::jmax(340, static_cast<int>(available * (compFr / total)));
     int neonW = static_cast<int>(available * (neonFr / total));
     int outW = available - scFilterW - compW - neonW;
     if (outW < minOutW) { outW = minOutW; neonW = available - scFilterW - compW - outW; }
@@ -267,5 +282,5 @@ void OmbicCompressorEditor::resized()
     animCompW_ = static_cast<float>(compW);
     animNeonW_ = static_cast<float>(neonW);
     animOutW_ = static_cast<float>(outW);
-    applyColumnLayout(scFilterW, compW, neonW, outW);
+    applyColumnLayout(scFilterW, compW, neonW, outW, mainVuH);
 }

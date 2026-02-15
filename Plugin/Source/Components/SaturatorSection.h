@@ -29,21 +29,21 @@ private:
     class ScopeComponent : public juce::Component
     {
     public:
-        ScopeComponent(OmbicCompressorProcessor& processor, juce::Slider& drive, juce::Slider& intensity);
+        ScopeComponent(OmbicCompressorProcessor& processor, juce::Slider& drive, juce::Slider& intensity,
+                      juce::Slider& tone, juce::Slider& mix);
         void paint(juce::Graphics& g) override;
     private:
         OmbicCompressorProcessor* proc_ = nullptr;
         juce::Slider* driveSlider_ = nullptr;
         juce::Slider* intensitySlider_ = nullptr;
+        [[maybe_unused]] juce::Slider* toneSlider_ = nullptr;
+        juce::Slider* mixSlider_ = nullptr;
     };
-
-    void ensureLogoLoaded();
 
     bool hovered_ = false;
     bool highlighted_ = false;
     [[maybe_unused]] OmbicCompressorProcessor& proc;
     OmbicLookAndFeel ombicLf;
-    juce::Image logoImage_;
 
     juce::Slider driveSlider;
     juce::Slider intensitySlider;

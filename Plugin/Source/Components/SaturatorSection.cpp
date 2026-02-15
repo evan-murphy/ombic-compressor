@@ -1,31 +1,27 @@
 #include "SaturatorSection.h"
 #include "../PluginProcessor.h"
-#include "OmbicAssets.h"
 #include <vector>
 
-SaturatorSection::ScopeComponent::ScopeComponent(OmbicCompressorProcessor& processor, juce::Slider& drive, juce::Slider& intensity)
-    : proc_(&processor), driveSlider_(&drive), intensitySlider_(&intensity) {}
+SaturatorSection::ScopeComponent::ScopeComponent(OmbicCompressorProcessor& processor, juce::Slider& drive, juce::Slider& intensity,
+                                                   juce::Slider& tone, juce::Slider& mix)
+    : proc_(&processor), driveSlider_(&drive), intensitySlider_(&intensity), toneSlider_(&tone), mixSlider_(&mix) {}
 
 void SaturatorSection::ScopeComponent::paint(juce::Graphics& g)
 {
     auto b = getLocalBounds().toFloat();
-    // Spec §7: background #080a12, border 1px pluginBorder, 10px radius
+    // NEON_BULB_GUI_SPEC: background #080a12, border 1px pluginBorder, 10px radius
     g.setColour(juce::Colour(0xFF080a12));
     g.fillRoundedRectangle(b, 10.0f);
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawRoundedRectangle(b.reduced(0.5f), 10.0f, 1.0f);
 
     auto plotArea = b.reduced(8.0f, 6.0f);
-    g.setColour(juce::Colour(0x0affffff));
-    g.drawHorizontalLine(static_cast<int>(plotArea.getCentreY()), plotArea.getX(), plotArea.getRight());
 
-    // When SC Listen is on, show real sidechain signal (teal); otherwise synthetic waveform
+    // When SC Listen is on, show real sidechain signal (teal); otherwise tube + filament (Option 5)
     std::vector<float> sidechainSamples;
     if (proc_ && proc_->isScListenActive() && proc_->getScopeSidechainSamples(sidechainSamples) && sidechainSamples.size() > 1)
     {
-        // § SC Listen: scope reflects sidechain — ombicTeal, single trace
-        float boxGlowAlpha = 0.04f;
-        g.setColour(OmbicLookAndFeel::ombicTeal().withAlpha(boxGlowAlpha));
+        g.setColour(OmbicLookAndFeel::ombicTeal().withAlpha(0.04f));
         g.fillRoundedRectangle(b.reduced(3.0f), 7.0f);
 
         juce::Path path;
@@ -54,47 +50,126 @@ void SaturatorSection::ScopeComponent::paint(juce::Graphics& g)
         return;
     }
 
-    float drive = driveSlider_ && intensitySlider_ ? static_cast<float>(driveSlider_->getValue() * 0.5 + intensitySlider_->getValue() * 0.25) : 0.4f;
-    float intensity = driveSlider_ && intensitySlider_ ? static_cast<float>(intensitySlider_->getValue()) : 0.45f;
-    drive = juce::jlimit(0.0f, 1.0f, drive);
+    // --- Option 5 Tube + filament (NEON_BULB_GUI_SPEC) ---
+    const float drive = driveSlider_ ? static_cast<float>(driveSlider_->getValue()) : 0.45f;
+    const float intensity = intensitySlider_ ? static_cast<float>(intensitySlider_->getValue()) : 0.5f;
+    const float mix = mixSlider_ ? static_cast<float>(mixSlider_->getValue()) : 1.0f;
 
-    // §7 Box glow: subtle inner glow on scope
-    float boxGlowAlpha = (drive * 0.12f + intensity * 0.06f) * 0.5f;
-    g.setColour(juce::Colour(0xFFe85590).withAlpha(boxGlowAlpha));
-    g.fillRoundedRectangle(b.reduced(3.0f), 7.0f);
+    // Less compact: use more of the area (smaller padding, taller tube, more vertical range)
+    const float tubeH = 42.0f;
+    const float tubeRadius = tubeH * 0.5f;
+    const float tubeY = plotArea.getCentreY() - tubeRadius;
+    const float tubeX = plotArea.getX() + 4.0f;
+    const float tubeW = plotArea.getWidth() - 8.0f;
+    const float yMid = plotArea.getCentreY();
+    const float amp = 18.0f;
 
-    float phase = static_cast<float>(juce::Time::getMillisecondCounter() % 100000) * 0.0001f;
-    const int n = 200;
-    juce::Path inputPath;
-    juce::Path outputPath;
-    for (int i = 0; i <= n; ++i)
+    // Tube outline: horizontal pill, stroke only (pluginBorder, ~0.6 alpha)
+    g.setColour(OmbicLookAndFeel::pluginBorder().withAlpha(0.6f));
+    g.drawRoundedRectangle(tubeX, tubeY, tubeW, tubeH, tubeRadius, 1.5f);
+
+    juce::Path tubeClipPath;
+    tubeClipPath.addRoundedRectangle(tubeX, tubeY, tubeW, tubeH, tubeRadius);
+
+    // Neon pink for filament (never use teal/blue here — this is the saturation display)
+    const juce::Colour neonPink(0xFFe85590);
+
+    // Below this peak we treat as silence and show a calm idle (avoids amplifying noise into crazy display)
+    const float kSilenceThreshold = 1e-4f;
+
+    juce::Path filamentPath;
+    std::vector<float> waveformSamples;
+    bool hasRealSignal = false;
+    float peak = 0.0f;
+    if (proc_ && proc_->getScopeWaveformSamples(waveformSamples) && waveformSamples.size() > 1)
     {
-        float t = static_cast<float>(i) / static_cast<float>(n);
-        float x = plotArea.getX() + t * plotArea.getWidth();
-        float yMid = plotArea.getCentreY();
-        float amp = plotArea.getHeight() * 0.4f;
-        float sine = std::sin(phase * 40.0f + t * 6.0f * juce::MathConstants<float>::pi);
-        float inY = yMid - sine * amp;
-        float satGain = 1.0f + drive * 3.0f * t;
-        float saturated = std::tanh(sine * satGain);
-        float outY = yMid - saturated * amp;
-        if (i == 0) { inputPath.startNewSubPath(x, inY); outputPath.startNewSubPath(x, outY); }
-        else { inputPath.lineTo(x, inY); outputPath.lineTo(x, outY); }
+        const size_t n = waveformSamples.size();
+        for (size_t i = 0; i < n; ++i)
+            peak = juce::jmax(peak, std::abs(waveformSamples[i]));
+        hasRealSignal = (peak >= kSilenceThreshold);
     }
-    g.setColour(OmbicLookAndFeel::pluginMuted().withAlpha(0.6f));
-    g.strokePath(inputPath, juce::PathStrokeType(1.5f));
-    g.setColour(OmbicLookAndFeel::ombicPink().withAlpha(drive * 0.25f));
-    g.strokePath(outputPath, juce::PathStrokeType(10.0f));
-    g.setColour(OmbicLookAndFeel::ombicRed().withAlpha(drive * 0.2f));
-    g.strokePath(outputPath, juce::PathStrokeType(6.0f));
-    juce::Colour satCol = OmbicLookAndFeel::pluginMuted().interpolatedWith(juce::Colour(0xFFe85590), 0.5f).interpolatedWith(OmbicLookAndFeel::ombicRed(), 0.3f);
-    g.setColour(satCol.withAlpha(0.6f + 0.4f * drive));
-    g.strokePath(outputPath, juce::PathStrokeType(2.0f));
+
+    if (hasRealSignal)
+    {
+        // Real waveform: normalize by peak, apply display drive, optional light smoothing to reduce noise jitter
+        const size_t n = waveformSamples.size();
+        const float displayGain = 1.0f + drive * 4.0f;
+        const float displayNorm = std::tanh(displayGain);
+        const int smoothHalf = 1;  // 3-point running average to reduce noise jitter
+        for (size_t i = 0; i < n; ++i)
+        {
+            float s = waveformSamples[i] / (peak + 1e-9f);
+            if (smoothHalf > 0 && n > static_cast<size_t>(smoothHalf * 2))
+            {
+                float sum = 0.0f;
+                int count = 0;
+                for (int d = -smoothHalf; d <= smoothHalf; ++d)
+                {
+                    int j = static_cast<int>(i) + d;
+                    if (j >= 0 && j < static_cast<int>(n))
+                    {
+                        sum += waveformSamples[static_cast<size_t>(j)] / (peak + 1e-9f);
+                        ++count;
+                    }
+                }
+                s = count > 0 ? sum / static_cast<float>(count) : s;
+            }
+            float displayed = std::tanh(s * displayGain) / displayNorm;
+            float t = static_cast<float>(i) / static_cast<float>(n - 1);
+            float x = tubeX + t * tubeW;
+            float yPos = yMid - displayed * amp;
+            if (i == 0)
+                filamentPath.startNewSubPath(x, yPos);
+            else
+                filamentPath.lineTo(x, yPos);
+        }
+    }
+    else
+    {
+        // No signal or silence: calm idle — flat line with a very gentle wave so it doesn't look dead
+        const float phase = static_cast<float>(juce::Time::getMillisecondCounter() % 100000) * 0.00008f;
+        const int nPts = 80;
+        const float idleAmp = 0.08f;  // subtle movement only
+        for (int i = 0; i <= nPts; ++i)
+        {
+            const float xNorm = static_cast<float>(i) / static_cast<float>(nPts);
+            const float x = tubeX + xNorm * tubeW;
+            const float y = std::sin(juce::MathConstants<float>::pi * xNorm + phase) * idleAmp;
+            const float yPos = yMid - y * amp;
+            if (i == 0)
+                filamentPath.startNewSubPath(x, yPos);
+            else
+                filamentPath.lineTo(x, yPos);
+        }
+    }
+
+    // Mix = dry/wet visibility: 0 = off, 1 = full. Intensity = glow strength + stroke thickness (spec formulas).
+    const float lineOpacity = mix;
+    const float glowOpacity = mix * (0.05f + 0.95f * intensity);
+    const float glowStrokeWidth = 1.0f + 38.0f * intensity;
+    const float lineStrokeWidth = 0.4f + 4.0f * intensity;
+
+    // Confine waveform to the tube so it never spills outside the pill
+    g.saveState();
+    g.reduceClipRegion(tubeClipPath);
+
+    if (glowOpacity > 0.001f)
+    {
+        g.setColour(neonPink.withAlpha(glowOpacity));
+        g.strokePath(filamentPath, juce::PathStrokeType(glowStrokeWidth));
+    }
+    if (lineOpacity > 0.001f)
+    {
+        g.setColour(neonPink.withAlpha(lineOpacity));
+        g.strokePath(filamentPath, juce::PathStrokeType(lineStrokeWidth));
+    }
+
+    g.restoreState();
 }
 
 SaturatorSection::SaturatorSection(OmbicCompressorProcessor& processor)
     : proc(processor)
-    , scopeComponent_(processor, driveSlider, intensitySlider)
+    , scopeComponent_(processor, driveSlider, intensitySlider, toneSlider, mixSlider)
 {
     setLookAndFeel(&ombicLf);
     addAndMakeVisible(scopeComponent_);
@@ -109,6 +184,8 @@ SaturatorSection::SaturatorSection(OmbicCompressorProcessor& processor)
     };
     driveSlider.setName("saturation");
     driveSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    driveSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    driveSlider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xFFe85590));
     driveSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 52, 18);
     driveSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
     driveSlider.setVelocityBasedMode(false);
@@ -124,6 +201,8 @@ SaturatorSection::SaturatorSection(OmbicCompressorProcessor& processor)
 
     intensitySlider.setName("saturation");
     intensitySlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    intensitySlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    intensitySlider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xFFe85590));
     intensitySlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 52, 18);
     intensitySlider.setColour(juce::Slider::textBoxTextColourId, textCol);
     intensitySlider.setVelocityBasedMode(false);
@@ -139,6 +218,8 @@ SaturatorSection::SaturatorSection(OmbicCompressorProcessor& processor)
 
     toneSlider.setName("saturation");
     toneSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    toneSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    toneSlider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xFFe85590));
     toneSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 52, 18);
     toneSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
     toneSlider.setVelocityBasedMode(false);
@@ -154,6 +235,8 @@ SaturatorSection::SaturatorSection(OmbicCompressorProcessor& processor)
 
     mixSlider.setName("saturation");
     mixSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    mixSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    mixSlider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xFFe85590));
     mixSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 52, 18);
     mixSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
     mixSlider.setVelocityBasedMode(false);
@@ -166,8 +249,6 @@ SaturatorSection::SaturatorSection(OmbicCompressorProcessor& processor)
     mixLabel.setColour(juce::Label::textColourId, labelCol);
     mixLabel.setFont(labelFont);
     addAndMakeVisible(mixLabel);
-
-    setTooltip("Random gain wobble (like a starved bulb flickering), not a fixed waveshape.");
 }
 
 SaturatorSection::~SaturatorSection()
@@ -196,16 +277,6 @@ void SaturatorSection::mouseExit(const juce::MouseEvent&)
     if (hovered_) { hovered_ = false; repaint(); }
 }
 
-void SaturatorSection::ensureLogoLoaded()
-{
-    if (logoImage_.isValid())
-        return;
-    int logoSize = 0;
-    const char* logoData = OmbicAssets::getNamedResource("Ombic_Alpha_png", logoSize);
-    if (logoData != nullptr && logoSize > 0)
-        logoImage_ = juce::ImageCache::getFromMemory(logoData, logoSize);
-}
-
 void SaturatorSection::paint(juce::Graphics& g)
 {
     auto b = getLocalBounds().toFloat();
@@ -213,67 +284,35 @@ void SaturatorSection::paint(juce::Graphics& g)
     g.fillRoundedRectangle(b, 16.0f);
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawRoundedRectangle(b, 16.0f, 2.0f);
-    auto headerRect = b.removeFromTop(36.0f);
+    const float headerH = getHeight() < 110 ? 22.0f : 28.0f;
+    auto headerRect = b.removeFromTop(headerH);
     g.setGradientFill(juce::ColourGradient(
         juce::Colour(0xFFcc3a6e), headerRect.getX(), headerRect.getY(),
         juce::Colour(0xFFe85590), headerRect.getRight(), headerRect.getY(), false));
-    g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + 36.0f), 16.0f);
-
-    // Neon bulb motif: capsule sized to fit Ombic logo clearly; glow scales with Drive
-    const float capW = 20.0f;
-    const float capH = 26.0f;
-    const float capX = 6.0f;
-    const float capY = 1.0f;
-    const float capR = capW * 0.5f;
-    const float glowPad = 5.0f;
-    float drive = static_cast<float>(driveSlider.getValue());  // 0..1, drives glow strength
-    drive = juce::jlimit(0.0f, 1.0f, drive);
-
-    juce::Path glowPath;
-    glowPath.addRoundedRectangle(capX - glowPad, capY - glowPad,
-                                  capW + glowPad * 2.0f, capH + glowPad * 2.0f, capR + 2.0f);
-    float glowAlpha = 0.2f + 0.4f * drive;  // more drive → stronger halo
-    g.setColour(OmbicLookAndFeel::ombicPink().withAlpha(glowAlpha));
-    g.fillPath(glowPath);
-
-    juce::Path capsulePath;
-    capsulePath.addRoundedRectangle(capX, capY, capW, capH, capR);
-    float fillAlpha = 0.35f + 0.45f * drive;  // more drive → brighter tube
-    g.setColour(OmbicLookAndFeel::ombicPink().withAlpha(fillAlpha));
-    g.fillPath(capsulePath);
-    g.setColour(OmbicLookAndFeel::ink());
-    g.strokePath(capsulePath, juce::PathStrokeType(1.2f));
-
-    // Ombic logo inside the capsule (centred, enough room to be recognizable)
-    ensureLogoLoaded();
-    if (logoImage_.isValid())
-    {
-        const float pad = 2.0f;
-        auto logoArea = juce::Rectangle<float>(capX + pad, capY + pad, capW - pad * 2.0f, capH - pad * 2.0f);
-        g.drawImageWithin(logoImage_,
-                          static_cast<int>(logoArea.getX()), static_cast<int>(logoArea.getY()),
-                          static_cast<int>(logoArea.getWidth()), static_cast<int>(logoArea.getHeight()),
-                          juce::RectanglePlacement::centred, false);
-    }
+    g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + headerH), 16.0f);
 
     g.setColour(juce::Colours::white);
-    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(13.0f, true));
-    g.drawText("NEON BULB SATURATION", static_cast<int>(capX + capW + 8), 8, 200, 20, juce::Justification::left);
+    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(11.0f, true));
+    g.drawText("NEON BULB SATURATION", static_cast<int>(headerRect.getX()) + 12, static_cast<int>((headerH - 11.0f) * 0.5f), 220, 14, juce::Justification::left);
 }
 
 void SaturatorSection::resized()
 {
     auto r = getLocalBounds();
-    r.removeFromTop(36);
-    r.reduce(14, 14);
-    const int scopeH = 110;  // Spec §7
-    const int marginBelowScope = 14;
+    const bool compact = (r.getHeight() < 110);
+    const int headerH = compact ? 22 : 28;
+    r.removeFromTop(headerH);
+    r.reduce(compact ? 8 : 14, compact ? 8 : 14);
+    const int labelH = compact ? 6 : 14;
+    const int knobSize = compact ? 36 : 72;   // larger knobs: 72px non-compact so section has more weight
+    const int gap = compact ? 4 : 14;
+    const int columnW = knobSize + gap;
+
+    // Always show the neon bulb scope (tube + waveform); in compact mode use a thin strip so it stays visible
+    const int scopeH = compact ? 22 : 90;   // slightly taller scope when we have room
+    const int marginBelowScope = compact ? 2 : 12;
     scopeComponent_.setBounds(r.getX(), r.getY(), r.getWidth(), scopeH);
     r.removeFromTop(scopeH + marginBelowScope);
-    const int labelH = 18;
-    const int knobSize = 48;
-    const int gap = 16;
-    const int columnW = knobSize + gap;
 
     int x = r.getX();
     auto place = [&](juce::Slider& sl, juce::Label& lb) {

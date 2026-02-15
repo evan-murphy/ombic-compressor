@@ -8,6 +8,7 @@
 #include "Components/OutputSection.h"
 #include "Components/SidechainFilterSection.h"
 #include "Components/MeterStrip.h"
+#include "Components/MainVuComponent.h"
 
 //==============================================================================
 class OmbicCompressorEditor : public juce::AudioProcessorEditor,
@@ -23,7 +24,7 @@ public:
 private:
     void timerCallback() override;
     void updateModeVisibility();
-    void applyColumnLayout(int scFilterW, int compW, int neonW, int outW);
+    void applyColumnLayout(int scFilterW, int compW, int neonW, int outW, int mainVuH);
 
     OmbicCompressorProcessor& processorRef;
     bool lastCurveDataState_ = false;
@@ -33,6 +34,7 @@ private:
     // §3: animate column widths over 300ms when switching Opto/FET
     float animScFilterW_ = 0, animCompW_ = 0, animNeonW_ = 0, animOutW_ = 0;
     int contentX_ = 0, contentY_ = 0, contentW_ = 0, contentH_ = 0;
+    int mainVuX_ = 0, mainVuY_ = 0, mainVuW_ = 0, mainVuH_ = 0;
     const float animRate_ = 0.15f;  // ~300ms at 25 Hz
 
     juce::TextButton optoPill_;
@@ -43,6 +45,7 @@ private:
     SaturatorSection saturatorSection;
     OutputSection outputSection;
     MeterStrip meterStrip;
+    MainVuComponent mainVu_;
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
