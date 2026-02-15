@@ -60,6 +60,7 @@ public:
     static const char* paramNeonBurstiness;
     static const char* paramNeonGMin;
     static const char* paramNeonSaturationAfter;
+    static const char* paramOptoCompressLimit;
 
 private:
     std::atomic<bool> curveDataLoaded_{ false };

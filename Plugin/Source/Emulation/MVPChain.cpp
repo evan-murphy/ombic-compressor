@@ -51,7 +51,8 @@ void MVPChain::process(juce::AudioBuffer<float>& buffer,
                        std::optional<float> ratio,
                        std::optional<float> attackParam,
                        std::optional<float> releaseParam,
-                       int blockSize)
+                       int blockSize,
+                       std::optional<bool> optoLimitMode)
 {
     if (mode_ == Mode::Opto)
     {
@@ -65,9 +66,11 @@ void MVPChain::process(juce::AudioBuffer<float>& buffer,
 
     if (compressor_)
     {
+        if (mode_ == Mode::Opto)
+            compressor_->setSidechainOptoOptions(true, optoLimitMode.value_or(false), sampleRate_);
         compressor_->process(buffer, sampleRate_, threshold, ratio, attackParam, releaseParam, blockSize);
         lastGrDb_ = compressor_->getLastGainReductionDb();
-        // Opto (LALA) curve is gentle; apply extra gain reduction so it can sound more aggressive
+        // Opto curve is gentle; apply extra gain reduction so it can sound more aggressive
         if (mode_ == Mode::Opto)
         {
             float extraGrDb = lastGrDb_ * 1.0f; // same again = 2x total GR

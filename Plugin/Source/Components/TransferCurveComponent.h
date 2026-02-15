@@ -13,11 +13,7 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
 
-    void mouseEnter(const juce::MouseEvent&) override;
-    void mouseExit(const juce::MouseEvent&) override;
-
 private:
-    bool hovered_ = false;
     OmbicCompressorProcessor& proc;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TransferCurveComponent)

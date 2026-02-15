@@ -9,7 +9,7 @@
 | Piece | Status |
 |-------|--------|
 | **FET mode** | `output/fetish_v2/` → transfer curve + **envelope** (one-pole attack/release from timing.csv when `attack_param`/`release_param` passed). |
-| **Opto mode** | `output/lala_v2/` → transfer curve (peak reduction 0–100%); fixed envelope. |
+| **Opto mode** | `output/lala_v2/` → transfer curve (peak reduction 0–100%); fixed program-dependent envelope (~10 ms attack, dual release 60 ms / 0.5–1 s); sidechain LPF (bass drives more); Compress/Limit switch (Limit = HF shelf in sidechain). |
 | **Envelope smoothing** | When timing data exists and FET `attack_param`/`release_param` are set, GR is smoothed with one-pole (time constants from timing table). |
 | **FR character** | `character_fr=True` → linear-phase FIR from `frequency_response.csv`. |
 | **THD character** | `character_thd=True` → tanh saturation with drive from `thd_vs_level.json`. |

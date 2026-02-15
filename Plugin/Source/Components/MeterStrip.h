@@ -14,13 +14,9 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
 
-    void mouseEnter(const juce::MouseEvent&) override;
-    void mouseExit(const juce::MouseEvent&) override;
-
 private:
     void timerCallback() override;
 
-    bool hovered_ = false;
     OmbicCompressorProcessor& proc;
     float smoothedInDb_ = -60.0f;
     float smoothedGrDb_ = 0.0f;

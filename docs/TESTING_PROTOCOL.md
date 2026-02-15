@@ -20,17 +20,17 @@ Use this checklist to verify the plugin in REAPER after a build. The plugin must
 
 ---
 
-## 3. Mode switching (LALA vs FETish)
+## 3. Mode switching (Opto vs FET)
 
-1. Set **Mode** to **LALA** (Opto). Change **Threshold** (0–100). You should hear more/less compression; GR meter should reflect it.
-2. Set **Mode** to **FETish**. Adjust **Threshold** (in dB), **Ratio**, **Attack**, **Release**. Adjust **Output** (makeup/trim). Confirm GR and level change as expected.
-3. Switch back and forth between LALA and FETish and confirm no crashes and that settings hold where applicable.
+1. Set **Mode** to **Opto**. Change **Threshold** (0–100). You should hear more/less compression; GR meter should reflect it.
+2. Set **Mode** to **FET**. Adjust **Threshold** (in dB), **Ratio**, **Attack**, **Release**. Adjust **Output** (makeup/trim). Confirm GR and level change as expected.
+3. Switch back and forth between Opto and FET and confirm no crashes and that settings hold where applicable.
 
 ---
 
 ## 4. Visual representation of compression
 
-1. With **FETish** and material playing, lower **Threshold** (e.g. to around -24 dB) so the compressor is clearly working.
+1. With **FET** and material playing, lower **Threshold** (e.g. to around -24 dB) so the compressor is clearly working.
 2. Check:
    - **GR meter** (in the Compressor section and in the right-hand strip) shows gain reduction (e.g. red bar or numeric readout).
    - **Numeric GR readout** (e.g. “-6.2 dB”) updates in real time when present.
@@ -57,8 +57,8 @@ Use this checklist to verify the plugin in REAPER after a build. The plugin must
 
 ## 7. What to listen for
 
-- **LALA (Opto):** Smoother, more “leveling” compression; threshold 0–100 controls amount.
-- **FETish:** More control (threshold in dB, ratio, attack, release); GR should track the measured FET curve and envelope.
+- **Opto:** Smoother, more “leveling” compression; threshold 0–100 controls amount.
+- **FET:** More control (threshold in dB, ratio, attack, release); GR should track the measured FET curve and envelope.
 - **Neon:** Extra harmonic character and level modulation; before compressor = more hit on the detector; after = more “finishing” saturation.
 
 ---

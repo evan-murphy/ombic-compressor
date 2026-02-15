@@ -33,13 +33,14 @@ public:
              float neonDryWet = 1.0f,
              bool neonSaturationAfter = false);
 
-    /** Process buffer. FET: threshold (dB), ratio, attack_param, release_param. Opto: threshold (0–100). */
+    /** Process buffer. FET: threshold (dB), ratio, attack_param, release_param. Opto: threshold (0–100). optoLimitMode: when Opto, true = Limit (more HF in sidechain). */
     void process(juce::AudioBuffer<float>& buffer,
                  float threshold,
                  std::optional<float> ratio,
                  std::optional<float> attackParam,
                  std::optional<float> releaseParam,
-                 int blockSize = 512);
+                 int blockSize = 512,
+                 std::optional<bool> optoLimitMode = std::nullopt);
 
     void setNeonParams(float depth, float modulationBandwidthHz, float toneFilterCutoffHz, float burstiness, float gMin, float dryWet, float intensity, bool saturationAfter);
     void setNeonEnabled(bool enabled) { neonEnabled_ = enabled; }

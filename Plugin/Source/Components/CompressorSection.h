@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "OmbicLookAndFeel.h"
+#include "TransferCurveComponent.h"
 
 class OmbicCompressorProcessor;
 
@@ -15,30 +16,34 @@ public:
     void paint(juce::Graphics& g) override;
 
     juce::ComboBox& getModeCombo() { return modeCombo; }
+    juce::ComboBox& getCompressLimitCombo() { return compressLimitCombo; }
     juce::Slider& getThresholdSlider() { return thresholdSlider; }
     juce::Slider& getRatioSlider() { return ratioSlider; }
     juce::Slider& getAttackSlider() { return attackSlider; }
     juce::Slider& getReleaseSlider() { return releaseSlider; }
     juce::Component* getGainReductionMeter() { return &grMeter; }
 
+    /** fetishParamsVisible: show ratio/attack/release (FET). When false (Opto), show Compress/Limit instead. */
     void setModeControlsVisible(bool fetishParamsVisible);
     /** Call from editor timer to refresh GR readout from processor. */
     void updateGrReadout();
-
-    void mouseEnter(const juce::MouseEvent&) override;
-    void mouseExit(const juce::MouseEvent&) override;
+    /** True if user is dragging any control in this section. */
+    bool isInteracting() const;
+    void setHighlight(bool on);
 
 private:
-    bool hovered_ = false;
+    bool highlighted_ = false;
     OmbicCompressorProcessor& proc;
     OmbicLookAndFeel ombicLf;
 
     juce::ComboBox modeCombo;
+    juce::ComboBox compressLimitCombo;
     juce::Slider thresholdSlider;
     juce::Slider ratioSlider;
     juce::Slider attackSlider;
     juce::Slider releaseSlider;
     juce::Label modeLabel;
+    juce::Label compressLimitLabel;
     juce::Label thresholdLabel;
     juce::Label ratioLabel;
     juce::Label attackLabel;
@@ -55,6 +60,8 @@ private:
         OmbicCompressorProcessor& processor;
         float smoothedGrDb_ = 0.0f; // VU-style ballistics
     } grMeter;
+
+    TransferCurveComponent transferCurve_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CompressorSection)
 };

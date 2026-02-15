@@ -4,6 +4,17 @@
 
 namespace emulation {
 
+// LA-2A manual: attack ~10 ms to 10 dB GR; release ~60 ms for small GR, 0.5–1+ s for large.
+static constexpr float kOptoAttackMs = 10.0f;
+static constexpr float kOptoReleaseFastMs = 60.0f;
+static constexpr float kOptoReleaseSlowMs = 600.0f;
+static constexpr float kOptoMaxGrDb = 40.0f;
+
+// Sidechain: LPF so bass drives more; HF shelf for Limit (more HF sensitivity).
+static constexpr double kSidechainLpfHz = 2400.0;
+static constexpr double kSidechainShelfHz = 2000.0;
+static constexpr float kSidechainShelfGainDb = 2.5f;
+
 static float interp1d(const std::vector<float>& x, const std::vector<float>& y, float xq)
 {
     if (x.empty() || x.size() != y.size()) return 0.0f;
@@ -19,6 +30,44 @@ static float interp1d(const std::vector<float>& x, const std::vector<float>& y, 
 MeasuredCompressor::MeasuredCompressor(const AnalyzerOutput& data) : data_(data)
 {
     buildCurveCache();
+}
+
+void MeasuredCompressor::setSidechainOptoOptions(bool rolloff, bool limit, double sampleRate)
+{
+    if (sidechainRolloff_ == rolloff && sidechainLimit_ == limit && std::abs(sidechainSampleRate_ - sampleRate) < 1.0)
+        return;
+    sidechainRolloff_ = rolloff;
+    sidechainLimit_ = limit;
+    sidechainSampleRate_ = sampleRate;
+    lpfCoeffs_.reset();
+    shelfCoeffs_.reset();
+    if (sampleRate > 0 && (rolloff || limit))
+    {
+        if (rolloff)
+            lpfCoeffs_ = juce::dsp::IIR::Coefficients<float>::makeLowPass(sampleRate, kSidechainLpfHz);
+        if (limit)
+            shelfCoeffs_ = juce::dsp::IIR::Coefficients<float>::makeHighShelf(sampleRate, kSidechainShelfHz, 0.7f, juce::Decibels::decibelsToGain(kSidechainShelfGainDb));
+    }
+    sidechainLpf_.clear();
+    sidechainShelf_.clear();
+}
+
+void MeasuredCompressor::ensureSidechainFilters(int numChannels, double /*sampleRate*/)
+{
+    if (!sidechainRolloff_ && !sidechainLimit_) return;
+    const auto n = static_cast<size_t>(std::min(numChannels, kMaxSidechainChannels));
+    if (lpfCoeffs_ && sidechainLpf_.size() != n)
+    {
+        sidechainLpf_.resize(n);
+        for (size_t i = 0; i < n; ++i)
+            sidechainLpf_[i].coefficients = lpfCoeffs_;
+    }
+    if (shelfCoeffs_ && sidechainShelf_.size() != n)
+    {
+        sidechainShelf_.resize(n);
+        for (size_t i = 0; i < n; ++i)
+            sidechainShelf_[i].coefficients = shelfCoeffs_;
+    }
 }
 
 void MeasuredCompressor::buildCurveCache()
@@ -122,26 +171,54 @@ void MeasuredCompressor::process(juce::AudioBuffer<float>& buffer, double sample
     const int numSamples = buffer.getNumSamples();
     if (numChannels == 0 || numSamples == 0) return;
 
-    // Enable envelope whenever we have attack/release params (FET mode). Timing CSV may have
-    // attack_time_ms but often has empty release_time_ms (analyzer didn't measure it); use param
-    // values as fallback so the sliders always do something.
+    const bool useOptoEnvelope = !attackParam.has_value() && !releaseParam.has_value();
+
     bool useEnvelope = false;
     float attackTimeMs = 10.0f, releaseTimeMs = 100.0f;
     if (attackParam.has_value() && releaseParam.has_value())
     {
         auto [atMs, reMs] = getAttackReleaseMs(*attackParam, *releaseParam);
-        attackTimeMs = atMs.has_value() ? std::max(0.1f, *atMs) : (*attackParam / 1000.0f); // attack param in µs
-        releaseTimeMs = reMs.has_value() ? std::max(0.1f, *reMs) : *releaseParam;          // release param in ms
+        attackTimeMs = atMs.has_value() ? std::max(0.1f, *atMs) : (*attackParam / 1000.0f);
+        releaseTimeMs = reMs.has_value() ? std::max(0.1f, *reMs) : *releaseParam;
         useEnvelope = true;
     }
+    else if (useOptoEnvelope)
+    {
+        attackTimeMs = kOptoAttackMs;
+        useEnvelope = true;
+    }
+
     float coeffAttack = 1.0f, coeffRelease = 1.0f;
-    if (useEnvelope)
+    if (useEnvelope && !useOptoEnvelope)
     {
         float tauAttackSamp = (attackTimeMs / 1000.0f) * (float)sampleRate;
         float tauReleaseSamp = (releaseTimeMs / 1000.0f) * (float)sampleRate;
         coeffAttack = 1.0f - std::exp(-(float)blockSize / tauAttackSamp);
         coeffRelease = 1.0f - std::exp(-(float)blockSize / tauReleaseSamp);
     }
+
+    const bool useSidechainFilter = sidechainRolloff_ || sidechainLimit_;
+    if (useSidechainFilter)
+    {
+        ensureSidechainFilters(numChannels, sampleRate);
+        sidechainBuffer_.makeCopyOf(buffer, true);
+        const int nCh = std::min(numChannels, kMaxSidechainChannels);
+        for (int ch = 0; ch < nCh; ++ch)
+        {
+            const auto chU = static_cast<size_t>(ch);
+            if (sidechainRolloff_ && chU < sidechainLpf_.size())
+            {
+                for (int i = 0; i < numSamples; ++i)
+                    sidechainBuffer_.setSample(ch, i, sidechainLpf_[chU].processSample(sidechainBuffer_.getSample(ch, i)));
+            }
+            if (sidechainLimit_ && chU < sidechainShelf_.size())
+            {
+                for (int i = 0; i < numSamples; ++i)
+                    sidechainBuffer_.setSample(ch, i, sidechainShelf_[chU].processSample(sidechainBuffer_.getSample(ch, i)));
+            }
+        }
+    }
+    juce::AudioBuffer<float>* levelBuffer = useSidechainFilter ? &sidechainBuffer_ : &buffer;
 
     int nBlocks = (numSamples + blockSize - 1) / blockSize;
     for (int b = 0; b < nBlocks; ++b)
@@ -152,7 +229,7 @@ void MeasuredCompressor::process(juce::AudioBuffer<float>& buffer, double sample
         float sumSq = 0;
         for (int ch = 0; ch < numChannels; ++ch)
             for (int i = start; i < end; ++i)
-                sumSq += buffer.getSample(ch, i) * buffer.getSample(ch, i);
+                sumSq += levelBuffer->getSample(ch, i) * levelBuffer->getSample(ch, i);
         float rms = std::sqrt(sumSq / (numChannels * len));
         float inputDb = rms <= 1e-10f ? -100.0f : 20.0f * std::log10(rms);
         float targetGrDb = gainReductionDb(threshold, inputDb, ratio, {}, {});
@@ -160,9 +237,23 @@ void MeasuredCompressor::process(juce::AudioBuffer<float>& buffer, double sample
         float grDb;
         if (useEnvelope)
         {
-            float coeff = (targetGrDb > envelopeGrDb_) ? coeffAttack : coeffRelease;
-            envelopeGrDb_ += (targetGrDb - envelopeGrDb_) * coeff;
-            grDb = envelopeGrDb_;
+            if (useOptoEnvelope)
+            {
+                float coeffA = 1.0f - std::exp(-(float)blockSize / ((kOptoAttackMs / 1000.0f) * (float)sampleRate));
+                float grForRelease = juce::jlimit(0.0f, kOptoMaxGrDb, envelopeGrDb_);
+                float tauReleaseMs = kOptoReleaseFastMs + (grForRelease / kOptoMaxGrDb) * (kOptoReleaseSlowMs - kOptoReleaseFastMs);
+                float tauReleaseSamp = (tauReleaseMs / 1000.0f) * (float)sampleRate;
+                float coeffR = 1.0f - std::exp(-(float)blockSize / tauReleaseSamp);
+                float coeff = (targetGrDb > envelopeGrDb_) ? coeffA : coeffR;
+                envelopeGrDb_ += (targetGrDb - envelopeGrDb_) * coeff;
+                grDb = envelopeGrDb_;
+            }
+            else
+            {
+                float coeff = (targetGrDb > envelopeGrDb_) ? coeffAttack : coeffRelease;
+                envelopeGrDb_ += (targetGrDb - envelopeGrDb_) * coeff;
+                grDb = envelopeGrDb_;
+            }
         }
         else
             grDb = targetGrDb;

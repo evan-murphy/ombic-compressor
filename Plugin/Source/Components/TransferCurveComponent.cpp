@@ -6,35 +6,16 @@ TransferCurveComponent::TransferCurveComponent(OmbicCompressorProcessor& process
 
 void TransferCurveComponent::resized() {}
 
-void TransferCurveComponent::mouseEnter(const juce::MouseEvent&)
-{
-    hovered_ = true;
-    repaint();
-}
-
-void TransferCurveComponent::mouseExit(const juce::MouseEvent&)
-{
-    hovered_ = false;
-    repaint();
-}
-
 void TransferCurveComponent::paint(juce::Graphics& g)
 {
     auto b = getLocalBounds().toFloat();
-    const float shadowOff = hovered_ ? 6.0f : 8.0f;
-    g.setColour(OmbicLookAndFeel::ink());
-    g.fillRoundedRectangle(b.translated(shadowOff, shadowOff), 12.0f);
-    g.setColour(OmbicLookAndFeel::bg());
-    g.fillRoundedRectangle(b, 12.0f);
-    g.setColour(OmbicLookAndFeel::ink());
-    g.drawRoundedRectangle(b, 12.0f, 2.0f);
-    if (hovered_)
-    {
-        g.setColour(OmbicLookAndFeel::ombicBlue().withAlpha(0.8f));
-        g.drawRoundedRectangle(b.reduced(2.0f), 10.0f, 2.0f);
-    }
+    // Spec §6: background pluginBg, border 1px pluginBorder, 10px radius
+    g.setColour(OmbicLookAndFeel::pluginBg());
+    g.fillRoundedRectangle(b, 10.0f);
+    g.setColour(OmbicLookAndFeel::pluginBorder());
+    g.drawRoundedRectangle(b.reduced(0.5f), 10.0f, 1.0f);
 
-    auto plotArea = b.reduced(28.0f, 12.0f); // margins for labels
+    auto plotArea = b.reduced(20.0f, 10.0f);
     const float dbMin = -50.0f;
     const float dbMax = 0.0f;
 
@@ -56,14 +37,21 @@ void TransferCurveComponent::paint(juce::Graphics& g)
     if (auto* r = apvts.getRawParameterValue(OmbicCompressorProcessor::paramCompressorMode))
         mode = static_cast<int>(r->load() + 0.5f);
 
-    // FET: threshold 0..100 -> dB -60..0; LALA: same 0..100 for display, but gentler curve
+    // FET: threshold 0..100 -> dB -60..0; Opto: same 0..100 for display, but gentler curve
     float threshDb = -60.0f + (thresholdRaw / 100.0f) * 60.0f;
     threshDb = juce::jlimit(dbMin, dbMax, threshDb);
-    float displayRatio = (mode == 1) ? juce::jmax(1.0f, ratio) : 2.5f; // LALA (opto) gentler
+    float displayRatio = (mode == 1) ? juce::jmax(1.0f, ratio) : 2.5f; // Opto gentler
 
-    // 1:1 reference (dashed)
-    g.setColour(OmbicLookAndFeel::line());
-    float dashLen = 4.0f;
+    // Grid 6×6, 4% white; unity line dashed 8% white
+    g.setColour(juce::Colour(0x0affffff));
+    for (int i = 1; i < 6; ++i)
+    {
+        float f = static_cast<float>(i) / 6.0f;
+        g.drawVerticalLine(static_cast<int>(plotArea.getX() + plotArea.getWidth() * f), plotArea.getY(), plotArea.getBottom());
+        g.drawHorizontalLine(static_cast<int>(plotArea.getY() + plotArea.getHeight() * (1.0f - f)), plotArea.getX(), plotArea.getRight());
+    }
+    g.setColour(juce::Colour(0x14ffffff));
+    float dashLen = 3.0f;
     g.drawDashedLine(juce::Line<float>(dbToX(dbMin), dbToY(dbMin), dbToX(dbMax), dbToY(dbMax)), &dashLen, 1, 1.0f);
 
     // Transfer curve: below threshold out = in, above out = thresh + (in - thresh) / ratio
@@ -81,7 +69,7 @@ void TransferCurveComponent::paint(juce::Graphics& g)
         else curve.lineTo(x, y);
     }
     g.setColour(OmbicLookAndFeel::ombicBlue());
-    g.strokePath(curve, juce::PathStrokeType(2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.strokePath(curve, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
     // Current input/output point (pink accent + red core per OMBIC fun colors)
     float inDb = proc.inputLevelDb.load();
@@ -97,9 +85,9 @@ void TransferCurveComponent::paint(juce::Graphics& g)
     g.setColour(OmbicLookAndFeel::ink());
     g.drawEllipse(px - 4, py - 4, 8, 8, 1.0f);
 
-    // Axis labels
-    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(10.0f, false));
-    g.setColour(OmbicLookAndFeel::ink());
-    g.drawText("In (dB)", static_cast<int>(plotArea.getCentreX() - 24), static_cast<int>(b.getBottom()) - 14, 48, 12, juce::Justification::centred);
-    g.drawText("Out", 4, static_cast<int>(plotArea.getY() + plotArea.getHeight() * 0.5f - 6), 24, 12, juce::Justification::left);
+    // Axis labels: "OUT" top-left, "IN" bottom-right, 8px, 25% white
+    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(8.0f, true));
+    g.setColour(juce::Colour(0x40ffffff));
+    g.drawText("OUT", static_cast<int>(plotArea.getX()), static_cast<int>(plotArea.getY() - 2), 24, 10, juce::Justification::left);
+    g.drawText("IN", static_cast<int>(plotArea.getRight() - 18), static_cast<int>(plotArea.getBottom() - 10), 18, 10, juce::Justification::right);
 }

@@ -50,6 +50,7 @@ const char* OmbicCompressorProcessor::paramNeonIntensity      = "neon_intensity"
 const char* OmbicCompressorProcessor::paramNeonBurstiness    = "neon_burstiness";
 const char* OmbicCompressorProcessor::paramNeonGMin          = "neon_g_min";
 const char* OmbicCompressorProcessor::paramNeonSaturationAfter = "neon_saturation_after";
+const char* OmbicCompressorProcessor::paramOptoCompressLimit   = "opto_compress_limit";
 
 //==============================================================================
 juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::createParameterLayout()
@@ -59,7 +60,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::cr
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{ paramCompressorMode, 1 },
         "Compressor Mode",
-        juce::StringArray{ "LALA", "FETish" },
+        juce::StringArray{ "Opto", "FET" },
         0));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
@@ -148,6 +149,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::cr
         juce::ParameterID{ paramNeonSaturationAfter, 1 },
         "Soft Sat After",
         false));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{ paramOptoCompressLimit, 1 },
+        "Compress / Limit",
+        juce::StringArray{ "Compress", "Limit" },
+        0));
 
     return layout;
 }
@@ -277,6 +284,8 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     const float neonBurstiness = apvts.getRawParameterValue(paramNeonBurstiness)->load();
     const float neonGMin = apvts.getRawParameterValue(paramNeonGMin)->load();
     const bool neonSatAfter = apvts.getRawParameterValue(paramNeonSaturationAfter)->load() > 0.5f;
+    // Opto-only: GUI "Compress / Limit" dropdown → 0 = Compress, 1 = Limit (more HF in sidechain)
+    const int optoCompressLimitChoice = static_cast<int>(apvts.getRawParameterValue(paramOptoCompressLimit)->load() + 0.5f);
 
     float threshold = thresholdRaw;
     std::optional<float> ratioOpt, attackOpt, releaseOpt;
@@ -303,7 +312,8 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             neonMix,
             neonIntensity,
             neonSatAfter);
-        chain->process(buffer, threshold, ratioOpt, attackOpt, releaseOpt, 512);
+        std::optional<bool> optoLimitMode = (mode == 0) ? std::optional<bool>(optoCompressLimitChoice == 1) : std::nullopt;  // Limit when dropdown = "Limit"
+        chain->process(buffer, threshold, ratioOpt, attackOpt, releaseOpt, 512, optoLimitMode);
         gainReductionDb.store(chain->getLastGainReductionDb());
     }
     else

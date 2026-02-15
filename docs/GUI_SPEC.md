@@ -15,7 +15,7 @@ PluginEditor (AudioProcessorEditor)
 │   ├── SignalFlowStrip (Component)      — [IN] ⇄ Saturator ⇄ Compressor ⇄ [OUT]
 │   ├── ContentArea (Component)
 │   │   ├── CompressorSection (Component)
-│   │   │   ├── ModeSelector (ComboBox or ToggleButtons)  — LALA / FETish / …
+│   │   │   ├── ModeSelector (ComboBox or ToggleButtons)  — Opto / FET / …
 │   │   │   ├── CompressorControls (Component)            — threshold, ratio, attack, release
 │   │   │   ├── OutputSection (Component)                 — output gain (makeup/trim)
 │   │   │   └── GainReductionMeter (Component)            — GR meter
@@ -39,7 +39,7 @@ PluginEditor (AudioProcessorEditor)
 | SignalFlowStrip           | `Component`            | Paints chain + routing toggle; contains `SignalFlowSwitcher` |
 | SignalFlowSwitcher        | `ToggleButton` or custom | "Saturator: Before / After" or A/B buttons |
 | CompressorSection         | `Component`            | Card style (white, 3px border, hard shadow) |
-| ModeSelector              | `ComboBox`             | LALA, FETish (extensible) |
+| ModeSelector              | `ComboBox`             | Opto, FET (extensible) |
 | CompressorControls        | `Component`            | Contains `Slider` + `Label` for each param |
 | SaturatorSection          | `Component`            | Same card style |
 | SaturatorControls         | `Component`            | Drive, Tone, Mix sliders |
@@ -69,11 +69,12 @@ All parameters are registered with `AudioProcessorValueTreeState` and attached t
 
 | Parameter ID       | Type    | Range / Options      | Default | Notes |
 |--------------------|---------|----------------------|---------|--------|
-| `compressor_mode`  | Choice  | 0 = LALA, 1 = FETish | 0       | ComboBoxAttachment; drives visibility of ratio/attack/release |
-| `threshold`        | Float   | 0…100 (LALA) or -60…0 dB (FETish) | 50 / -18 | SliderAttachment; scale depends on mode |
-| `ratio`            | Float   | 1…20 (FETish only)   | 4       | SliderAttachment; hidden in LALA |
-| `attack`           | Float   | 0.02…0.8 ms (FETish) or N/A | 0.1 | SliderAttachment; hidden in LALA |
-| `release`          | Float   | 50…1100 ms (FETish)  | 200     | SliderAttachment; hidden in LALA |
+| `compressor_mode`  | Choice  | 0 = Opto, 1 = FET | 0       | ComboBoxAttachment; drives visibility of ratio/attack/release |
+| `threshold`        | Float   | 0…100 (Opto) or -60…0 dB (FET) | 50 / -18 | SliderAttachment; scale depends on mode |
+| `ratio`            | Float   | 1…20 (FET only)   | 4       | SliderAttachment; hidden in Opto |
+| `attack`           | Float   | 0.02…0.8 ms (FET) or N/A | 0.1 | SliderAttachment; hidden in Opto |
+| `release`          | Float   | 50…1100 ms (FET)  | 200     | SliderAttachment; hidden in Opto |
+| `opto_compress_limit` | Choice | 0 = Compress, 1 = Limit | 0 | ComboBoxAttachment; **Opto only**; visible when mode = Opto |
 | `makeup_gain_db`   | Float   | -24…+24 dB           | 0       | SliderAttachment; **Output** section (after saturator + compressor) |
 
 #### Saturator (Neon)
@@ -97,29 +98,29 @@ All parameters are registered with `AudioProcessorValueTreeState` and attached t
 
 - **Constructor**: Create all controls, then create attachments using `APVTS&` and parameter IDs. Store attachments as member `std::unique_ptr<SliderAttachment>` etc., so they outlive the controls and disconnect automatically.
 - **SliderAttachment**: `sliderId` must match the parameter ID string in `createParameterLayout()`.
-- **ComboBoxAttachment**: for `compressor_mode` and optionally `saturator_position` (if using ComboBox).
+- **ComboBoxAttachment**: for `compressor_mode`, `opto_compress_limit` (Opto), and optionally `saturator_position` (if using ComboBox).
 - **ButtonAttachment**: for `neon_enable`, `saturator_position` (if using toggle), `neon_saturation_after`.
 
 ---
 
 ## 3. Mode Switching Implementation
 
-### 3.1 Compressor Mode (LALA vs FETish)
+### 3.1 Compressor Mode (Opto vs FET)
 
-- **Control**: `ComboBox` with items "LALA" (index 0), "FETish" (index 1). Parameter `compressor_mode` (choice 0/1).
+- **Control**: `ComboBox` with items "Opto" (index 0), "FET" (index 1). Parameter `compressor_mode` (choice 0/1).
 - **Behaviour**:
-  - When mode = LALA: show only **Threshold** (0–100%). Hide or disable **Ratio**, **Attack**, **Release** (or show greyed with "N/A").
-  - When mode = FETish: show **Threshold** (dB), **Ratio**, **Attack**, **Release**.
+  - When mode = Opto: show **Threshold** (0–100%) and **Compress / Limit** (ComboBox). Hide **Ratio**, **Attack**, **Release**.
+  - When mode = FET: show **Threshold** (dB), **Ratio**, **Attack**, **Release**. Hide **Compress / Limit**.
   - **Output** (makeup/trim) is a separate section after Saturator, not part of the Compressor card.
 - **Implementation**:
-  - In `PluginEditor::timerCallback()` or in a `ComboBox::onChange` callback (if not using attachment), update visibility/enabled state of the FETish-only controls from `compressor_mode` value.
+  - In `PluginEditor::timerCallback()` or in a `ComboBox::onChange` callback (if not using attachment), update visibility/enabled state of the FET-only controls from `compressor_mode` value.
   - Alternatively use a single `ComboBoxAttachment` for `compressor_mode` and in `valueChanged()` of a listener on the APVTS, update visibility. Prefer one listener on the APVTS parameter `compressor_mode` to show/hide components.
 
 ### 3.2 Parameter Ranges per Mode
 
-- **LALA**: `threshold` 0…100 (percent); ratio/attack/release unused by DSP.
-- **FETish**: `threshold` in dB (e.g. -60…0), `ratio` 1…20, `attack` in ms or µs per config, `release` in ms.
-- Store one set of parameter IDs; in the processor’s `processBlock()`, read mode and threshold (and ratio/attack/release for FETish) and pass to the appropriate curve or emulation.
+- **Opto**: `threshold` 0…100 (percent); ratio/attack/release unused by DSP.
+- **FET**: `threshold` in dB (e.g. -60…0), `ratio` 1…20, `attack` in ms or µs per config, `release` in ms.
+- Store one set of parameter IDs; in the processor’s `processBlock()`, read mode and threshold (and ratio/attack/release for FET) and pass to the appropriate curve or emulation.
 
 ---
 
@@ -185,7 +186,7 @@ A horizontal strip showing the chain with the saturator position switchable:
 
 - [ ] All compressor and saturator parameters defined in `createParameterLayout()` with correct IDs.
 - [ ] SliderAttachment / ComboBoxAttachment / ButtonAttachment for every control in PluginEditor.
-- [ ] Mode selector drives visibility/enabled state of LALA vs FETish controls.
+- [ ] Mode selector drives visibility/enabled state of Opto vs FET controls.
 - [x] Signal flow fixed: saturator always before compressor (no strip/toggle).
 - [ ] Processor writes meter values to atomics; editor timer reads and repaints meter components.
 - [ ] OMBIC LookAndFeel applied: borders, shadows, colours, fonts per style guide.

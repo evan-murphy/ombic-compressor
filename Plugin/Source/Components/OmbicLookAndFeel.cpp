@@ -1,4 +1,5 @@
 #include "OmbicLookAndFeel.h"
+#include "OmbicAssets.h"
 
 juce::Typeface::Ptr OmbicLookAndFeel::s_trashBold;
 juce::Typeface::Ptr OmbicLookAndFeel::s_trashRegular;
@@ -6,6 +7,10 @@ juce::Typeface::Ptr OmbicLookAndFeel::s_trashRegular;
 OmbicLookAndFeel::OmbicLookAndFeel()
 {
     setDefaultSansSerifTypefaceName("Segoe UI");
+    setColour(juce::Label::textColourId, pluginText());
+    setColour(juce::Slider::textBoxTextColourId, pluginText());
+    setColour(juce::Slider::textBoxBackgroundColourId, pluginRaised());
+    setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
 }
 
 juce::File OmbicLookAndFeel::findStyleFolder()
@@ -33,17 +38,61 @@ juce::File OmbicLookAndFeel::findStyleFolder()
     return {};
 }
 
+juce::File OmbicLookAndFeel::findFontFolder()
+{
+    juce::String dataPath = juce::SystemStats::getEnvironmentVariable("OMBIC_COMPRESSOR_DATA_PATH", {});
+    if (dataPath.isNotEmpty())
+    {
+        juce::File root = dataPath.startsWithChar('/') ? juce::File(dataPath) : juce::File::getCurrentWorkingDirectory().getChildFile(dataPath);
+        juce::File fontsDir = root.getChildFile("fonts");
+        if (fontsDir.exists() && fontsDir.getChildFile("Trash-Bold.ttf").existsAsFile())
+            return fontsDir;
+        fontsDir = root.getChildFile("Plugin").getChildFile("fonts");
+        if (fontsDir.exists() && fontsDir.getChildFile("Trash-Bold.ttf").existsAsFile())
+            return fontsDir;
+    }
+    juce::File cwd = juce::File::getCurrentWorkingDirectory();
+    juce::File fontsDir = cwd.getChildFile("fonts");
+    if (fontsDir.exists() && fontsDir.getChildFile("Trash-Bold.ttf").existsAsFile())
+        return fontsDir;
+    fontsDir = cwd.getChildFile("Plugin").getChildFile("fonts");
+    if (fontsDir.exists() && fontsDir.getChildFile("Trash-Bold.ttf").existsAsFile())
+        return fontsDir;
+    juce::String fontPath = juce::SystemStats::getEnvironmentVariable("OMBIC_FONT_PATH", {});
+    if (fontPath.isNotEmpty())
+    {
+        juce::File f = fontPath.startsWithChar('/') ? juce::File(fontPath) : cwd.getChildFile(fontPath);
+        if (f.exists() && (f.getChildFile("Trash-Bold.ttf").existsAsFile() || f.getChildFile("Trash-Regular.ttf").existsAsFile()))
+            return f;
+    }
+    return {};
+}
+
 juce::Typeface::Ptr OmbicLookAndFeel::loadTrashTypeface(bool bold)
 {
     juce::Typeface::Ptr& cached = bold ? s_trashBold : s_trashRegular;
     if (cached != nullptr)
         return cached;
-    juce::File styleDir = findStyleFolder();
-    if (!styleDir.exists())
+
+    // 1) Try embedded fonts (only present if Plugin/fonts/Trash-*.ttf existed at build time)
+    int size = 0;
+    const char* data = OmbicAssets::getNamedResource(bold ? "Trash_Bold_ttf" : "Trash_Regular_ttf", size);
+    if (data != nullptr && size > 0)
+    {
+        cached = juce::Typeface::createSystemTypefaceFor(data, static_cast<size_t>(size));
+        if (cached != nullptr)
+            return cached;
+    }
+
+    // 2) Load from fonts/ (Plugin/fonts/, OMBIC_FONT_PATH, cwd/fonts) then style/
+    juce::File fontDir = findFontFolder();
+    if (!fontDir.exists())
+        fontDir = findStyleFolder();
+    if (!fontDir.exists())
         return {};
-    juce::File fontFile = styleDir.getChildFile(bold ? "Trash-Bold.ttf" : "Trash-Regular.ttf");
+    juce::File fontFile = fontDir.getChildFile(bold ? "Trash-Bold.ttf" : "Trash-Regular.ttf");
     if (!fontFile.existsAsFile())
-        fontFile = styleDir.getChildFile("Trash-Regular.ttf");
+        fontFile = fontDir.getChildFile("Trash-Regular.ttf");
     if (!fontFile.existsAsFile())
         return {};
     juce::MemoryBlock mb;
@@ -74,40 +123,64 @@ void OmbicLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& but
                                             const juce::Colour&, bool isMouseOver, bool isButtonDown)
 {
     auto bounds = button.getLocalBounds().toFloat();
+    const bool isPill = button.getName().contains("Pill");
+
+    if (isPill)
+    {
+        // Spec §6: mode pills — active = ombicBlue fill; inactive = transparent, pluginBorderStrong
+        const bool selected = button.getToggleState();
+        const float radius = bounds.getHeight() * 0.5f;
+        if (selected)
+        {
+            g.setColour(ombicBlue());
+            g.fillRoundedRectangle(bounds, radius);
+            g.setColour(ombicBlue());
+            g.drawRoundedRectangle(bounds.reduced(1.0f), radius - 1.0f, 2.0f);
+        }
+        else
+        {
+            g.setColour(juce::Colours::transparentBlack);
+            g.fillRoundedRectangle(bounds, radius);
+            g.setColour(isMouseOver ? ombicBlue() : pluginBorderStrong());
+            g.drawRoundedRectangle(bounds.reduced(1.0f), radius - 1.0f, 2.0f);
+        }
+        return;
+    }
+
     const int borderW = 3;
     const int shadowOffset = 4;
     const bool selected = button.getToggleState();
-
-    juce::Colour fill = selected ? ombicYellow() : ombicBlue();
+    juce::Colour fill = selected ? ombicBlue() : ombicBlue();
     if (button.getName().contains("danger") || button.getName().contains("Delete"))
         fill = ombicRed();
     if (!button.isEnabled())
         fill = fill.withAlpha(0.5f);
 
-    // Hard shadow (bottom-right)
     if (button.isEnabled() && !isButtonDown)
-        g.setColour(ink());
+        g.setColour(pluginShadow());
     else
         g.setColour(juce::Colours::transparentBlack);
     g.fillRoundedRectangle(bounds.reduced(borderW).translated(static_cast<float>(shadowOffset), static_cast<float>(shadowOffset)), 12.0f);
-
-    // Border + fill
-    g.setColour(ink());
+    g.setColour(pluginBg());
     g.fillRoundedRectangle(bounds.reduced(borderW), 12.0f);
     g.setColour(fill);
     g.fillRoundedRectangle(bounds.reduced(borderW + 1), 11.0f);
-
     if (isMouseOver && button.isEnabled())
-    {
         g.setColour(ombicBlue().withAlpha(0.3f));
-        g.drawRoundedRectangle(bounds.reduced(borderW), 12.0f, 2.0f);
-    }
+    g.drawRoundedRectangle(bounds.reduced(borderW), 12.0f, 2.0f);
 }
 
 void OmbicLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& button,
-                                      bool, bool)
+                                      bool isMouseOver, bool)
 {
-    juce::Colour c = button.getToggleState() ? ink() : bg();
+    if (button.getName().contains("Pill"))
+    {
+        g.setColour(button.getToggleState() ? juce::Colours::white : (isMouseOver ? pluginText() : pluginMuted()));
+        g.setFont(getOmbicFont(11.0f, 900.0f));
+        g.drawText(button.getButtonText(), button.getLocalBounds(), juce::Justification::centred);
+        return;
+    }
+    juce::Colour c = button.getToggleState() ? juce::Colours::white : pluginText();
     if (!button.isEnabled())
         c = c.withAlpha(0.6f);
     g.setColour(c);
@@ -127,9 +200,20 @@ void OmbicLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bo
     g.drawRoundedRectangle(bounds.reduced(1.5f), 12.0f, 3.0f);
 }
 
+void OmbicLookAndFeel::positionComboBoxText(juce::ComboBox& box, juce::Label& label)
+{
+    const int leftPad = 10;
+    const int rightPad = 28; // space for dropdown arrow
+    const int vertPad = 2;
+    label.setBounds(leftPad, vertPad,
+                    juce::jmax(0, box.getWidth() - leftPad - rightPad),
+                    box.getHeight() - vertPad * 2);
+    label.setFont(getComboBoxFont(box));
+}
+
 void OmbicLookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label)
 {
-    g.setColour(label.isEnabled() ? ink() : muted());
+    g.setColour(label.findColour(juce::Label::textColourId));
     g.setFont(getOmbicFont(static_cast<float>(label.getHeight()) * 0.6f, 700.0f));
     g.drawText(label.getText(), label.getLocalBounds(), label.getJustificationType());
 }
@@ -181,26 +265,68 @@ void OmbicLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int wid
 
 void OmbicLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
                                         float sliderPos, float startAngle, float endAngle,
-                                        juce::Slider& /*slider*/)
+                                        juce::Slider& slider)
 {
-    auto bounds = juce::Rectangle<float>(static_cast<float>(x), static_cast<float>(y),
-                                         static_cast<float>(width), static_cast<float>(height))
-                      .reduced(4);
-    g.setColour(line());
-    g.fillEllipse(bounds);
-    g.setColour(ombicBlue());
-    float angle = startAngle + sliderPos * (endAngle - startAngle);
-    juce::Path p;
-    p.addPieSegment(bounds, startAngle, angle, 0.4f);
-    g.fillPath(p);
-    g.setColour(ink());
-    g.drawEllipse(bounds, 3.0f);
-    float cx = bounds.getCentreX();
-    float cy = bounds.getCentreY();
-    float r = bounds.getWidth() * 0.35f;
-    float tx = cx + r * std::cos(angle);
-    float ty = cy - r * std::sin(angle);
-    g.drawLine(cx, cy, tx, ty, 3.0f);
+    // Spec §5: 240° sweep (150°–390° from top clockwise; 0°=top). Standard coords: top=90°, so 150° from top = 300°, 390° from top = 60°.
+    constexpr float pi = juce::MathConstants<float>::pi;
+    const float startRad = (90.0f - 150.0f) * (pi / 180.0f);  // 300° standard = 5pi/3
+    const float endRad   = (90.0f - 390.0f) * (pi / 180.0f);  // 60° standard = pi/3 (wrap)
+    const float endRadNorm = endRad + 2.0f * pi;              // 60° = pi/3
+
+    float side = static_cast<float>(juce::jmin(width, height));
+    float left = static_cast<float>(x) + (static_cast<float>(width) - side) * 0.5f;
+    float top  = static_cast<float>(y) + (static_cast<float>(height) - side) * 0.5f;
+    auto bounds = juce::Rectangle<float>(left, top, side, side);
+
+    const float strokeW = side <= 56 ? 4.0f : 5.0f;
+    const float innerMargin = strokeW * 1.2f;
+    auto inner = bounds.reduced(innerMargin);
+    const float cx = inner.getCentreX();
+    const float cy = inner.getCentreY();
+    const float r = inner.getWidth() * 0.5f;
+
+    juce::Colour accent = ombicBlue();
+    if (slider.getName().contains("saturation") || slider.getName().contains("drive")
+        || slider.getName().contains("intensity") || slider.getName().contains("tone") || slider.getName().contains("mix"))
+        accent = juce::Colour(0xFFe85590);
+    else if (slider.getName().contains("output"))
+        accent = ombicPurple();
+
+    float angle = startRad + sliderPos * (endRadNorm - startRad);
+
+    // Track: full 240° arc, 8% white
+    juce::Path trackPath;
+    trackPath.addCentredArc(cx, cy, r, r, 0, startRad, endRadNorm, true);
+    g.setColour(knobTrack());
+    g.strokePath(trackPath, juce::PathStrokeType(strokeW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // Value arc: glow (wider, 15% opacity) and fill
+    juce::Path valuePath;
+    valuePath.addCentredArc(cx, cy, r, r, 0, startRad, angle, true);
+    g.setColour(accent.withAlpha(0.15f));
+    g.strokePath(valuePath, juce::PathStrokeType(strokeW + 6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // Value arc: accent colour
+    g.setColour(accent);
+    g.strokePath(valuePath, juce::PathStrokeType(strokeW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // Center circle: pluginRaised, 1px border
+    const float centerR = r - strokeW * 1.5f;
+    if (centerR > 2.0f)
+    {
+        g.setColour(pluginRaised());
+        g.fillEllipse(cx - centerR, cy - centerR, centerR * 2.0f, centerR * 2.0f);
+        g.setColour(juce::Colour(0x0fffffff));
+        g.drawEllipse(cx - centerR, cy - centerR, centerR * 2.0f, centerR * 2.0f, 1.0f);
+    }
+
+    // Pointer dot at current angle (r=2.5–3px)
+    const float dotR = side >= 70 ? 3.0f : 2.5f;
+    const float dotDist = r - strokeW * 0.5f;
+    const float dx = cx + dotDist * std::cos(angle);
+    const float dy = cy - dotDist * std::sin(angle);
+    g.setColour(accent);
+    g.fillEllipse(dx - dotR, dy - dotR, dotR * 2.0f, dotR * 2.0f);
 }
 
 void OmbicLookAndFeel::drawGroupComponentOutline(juce::Graphics& g, int width, int height,
@@ -219,7 +345,8 @@ void OmbicLookAndFeel::drawGroupComponentOutline(juce::Graphics& g, int width, i
 
 juce::Font OmbicLookAndFeel::getLabelFont(juce::Label&)
 {
-    return getOmbicFont(14.0f, 700.0f);
+    // Spec §11: param values 14px weight 900 (slider text box uses this)
+    return getOmbicFont(14.0f, 900.0f);
 }
 
 juce::Font OmbicLookAndFeel::getComboBoxFont(juce::ComboBox&)

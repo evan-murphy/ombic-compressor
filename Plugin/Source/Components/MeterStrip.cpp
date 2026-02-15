@@ -25,18 +25,6 @@ void MeterStrip::timerCallback()
 
 void MeterStrip::resized() {}
 
-void MeterStrip::mouseEnter(const juce::MouseEvent&)
-{
-    hovered_ = true;
-    repaint();
-}
-
-void MeterStrip::mouseExit(const juce::MouseEvent&)
-{
-    hovered_ = false;
-    repaint();
-}
-
 void MeterStrip::paint(juce::Graphics& g)
 {
     float inNorm = levelToNorm(smoothedInDb_);
@@ -44,51 +32,74 @@ void MeterStrip::paint(juce::Graphics& g)
     float outNorm = levelToNorm(smoothedOutDb_);
 
     auto b = getLocalBounds().toFloat();
-    const float shadowOff = hovered_ ? 6.0f : 8.0f;
+    const float shadowOff = 8.0f;
     g.setColour(OmbicLookAndFeel::ink());
     g.fillRoundedRectangle(b.translated(shadowOff, shadowOff), 20.0f);
     g.setColour(OmbicLookAndFeel::bg());
     g.fillRoundedRectangle(b, 20.0f);
     g.setColour(OmbicLookAndFeel::ink());
     g.drawRoundedRectangle(b, 20.0f, 3.0f);
-    if (hovered_)
-    {
-        g.setColour(OmbicLookAndFeel::ombicBlue().withAlpha(0.8f));
-        g.drawRoundedRectangle(b.reduced(2.0f), 18.0f, 2.0f);
-    }
     b = b.reduced(12.0f);
 
-    const int meterW = 24;
-    const int gap = 12;
-    int x = static_cast<int>(b.getX()) + 4;
+    const int meterW = 28;
+    const int gap = 10;
+    const float boxH = b.getHeight() - 36.0f;
+    int x = static_cast<int>(b.getX()) + 24;
 
-    auto drawVerticalMeter = [&](float norm, const juce::Colour& fillColour, const juce::String& title) {
-        auto box = b.withX(static_cast<float>(x)).withWidth(static_cast<float>(meterW)).reduced(1);
+    // Shared dB scale for level meters (In/Out): 0, -20, -40, -60 dB
+    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(9.0f, false));
+    g.setColour(OmbicLookAndFeel::ink());
+    int scaleX = static_cast<int>(b.getX());
+    auto dbToY = [&](float db) {
+        return static_cast<int>(boxH * (1.0f - (db + 60.0f) / 60.0f));
+    };
+    g.drawText("0 dB", scaleX, dbToY(0) - 6, 22, 12, juce::Justification::right);
+    g.drawText("-20", scaleX, dbToY(-20.0f) - 6, 22, 12, juce::Justification::right);
+    g.drawText("-40", scaleX, dbToY(-40.0f) - 6, 22, 12, juce::Justification::right);
+    g.drawText("-60", scaleX, dbToY(-60.0f) - 6, 22, 12, juce::Justification::right);
+
+    auto drawLevelMeter = [&](float norm, const juce::Colour& fillColour,
+                              const juce::String& title, float currentDb) {
+        auto box = b.withX(static_cast<float>(x)).withWidth(static_cast<float>(meterW))
+                        .withHeight(boxH).reduced(1);
         g.setColour(OmbicLookAndFeel::ink());
         g.drawRoundedRectangle(box, 4.0f, 2.0f);
         g.setColour(OmbicLookAndFeel::line());
         g.fillRoundedRectangle(box.reduced(1), 3.0f);
-        float barH = box.getHeight() * norm;
-        if (barH > 0.5f)
+        if (norm > 0.005f)
         {
             g.setColour(fillColour);
+            float barH = box.getHeight() * norm;
             g.fillRoundedRectangle(box.getX() + 2, box.getBottom() - barH, box.getWidth() - 4, barH, 3.0f);
         }
         g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(9.0f, false));
         g.setColour(OmbicLookAndFeel::ink());
-        g.drawText(title, x - 4, static_cast<int>(box.getBottom()) + 2, meterW + 8, 14, juce::Justification::centred);
+        g.drawText(title, x - 2, static_cast<int>(box.getBottom()) + 2, meterW + 4, 12, juce::Justification::centred);
+        juce::String dbStr = (currentDb <= -60.0f) ? "-60" : juce::String(static_cast<int>(currentDb));
+        g.drawText(dbStr + " dB", x - 2, static_cast<int>(box.getBottom()) + 14, meterW + 4, 12, juce::Justification::centred);
         x += meterW + gap;
     };
 
+    drawLevelMeter(inNorm, OmbicLookAndFeel::ombicBlue(), "In", smoothedInDb_);
+
+    // GR meter: 0 to -20 dB (bar = gain reduction in dB), with numeric readout
+    auto grBox = b.withX(static_cast<float>(x)).withWidth(static_cast<float>(meterW)).withHeight(boxH).reduced(1);
+    g.setColour(OmbicLookAndFeel::ink());
+    g.drawRoundedRectangle(grBox, 4.0f, 2.0f);
+    g.setColour(OmbicLookAndFeel::line());
+    g.fillRoundedRectangle(grBox.reduced(1), 3.0f);
+    if (grNorm > 0.005f)
+    {
+        g.setColour(OmbicLookAndFeel::ombicRed());
+        float barH = grBox.getHeight() * grNorm;
+        g.fillRoundedRectangle(grBox.getX() + 2, grBox.getBottom() - barH, grBox.getWidth() - 4, barH, 3.0f);
+    }
     g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(9.0f, false));
     g.setColour(OmbicLookAndFeel::ink());
-    float boxH = b.getHeight() - 18.0f;
-    int scaleX = static_cast<int>(b.getX()) - 16;
-    g.drawText("0", scaleX, 0, 14, 12, juce::Justification::right);
-    g.drawText("-20", scaleX, static_cast<int>(boxH * 0.33f) - 6, 14, 12, juce::Justification::right);
-    g.drawText("-40", scaleX, static_cast<int>(boxH * 0.66f) - 6, 14, 12, juce::Justification::right);
+    g.drawText("GR", x - 2, static_cast<int>(grBox.getBottom()) + 2, meterW + 4, 12, juce::Justification::centred);
+    juce::String grDbStr = juce::String(smoothedGrDb_, 1) + " dB";
+    g.drawText(grDbStr, x - 2, static_cast<int>(grBox.getBottom()) + 14, meterW + 4, 12, juce::Justification::centred);
+    x += meterW + gap;
 
-    drawVerticalMeter(inNorm, OmbicLookAndFeel::ombicBlue(), "In");
-    drawVerticalMeter(grNorm, OmbicLookAndFeel::ombicRed(), "GR");
-    drawVerticalMeter(outNorm, OmbicLookAndFeel::ombicTeal(), "Out");
+    drawLevelMeter(outNorm, OmbicLookAndFeel::ombicTeal(), "Out", smoothedOutDb_);
 }

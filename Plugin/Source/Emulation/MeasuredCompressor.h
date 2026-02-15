@@ -8,7 +8,8 @@
 
 namespace emulation {
 
-/** Compressor from analyzer data: interpolate gain_reduction_db from compression CSV; optional one-pole envelope from timing CSV. */
+/** Compressor from analyzer data: interpolate gain_reduction_db from compression CSV; optional one-pole envelope from timing CSV.
+ *  Opto mode: fixed program-dependent envelope (attack ~10 ms, dual release); optional sidechain LPF (rolloff) and HF shelf (Limit). */
 class MeasuredCompressor
 {
 public:
@@ -23,7 +24,10 @@ public:
     /** Interpolate (attack_time_ms, release_time_ms) from timing table. Returns (nullopt, nullopt) if no data. */
     std::pair<std::optional<float>, std::optional<float>> getAttackReleaseMs(float attackParam, float releaseParam) const;
 
-    /** Process buffer. When attack_param/release_param are set and timing data exists, uses one-pole envelope. */
+    /** Opto sidechain: rolloff = LPF so bass drives compression more; limit = HF shelf so Limit mode has more HF sensitivity. Call when in Opto mode (and on sample rate change). */
+    void setSidechainOptoOptions(bool rolloff, bool limit, double sampleRate);
+
+    /** Process buffer. When attack_param/release_param are set and timing data exists, uses one-pole envelope. When both nullopt (Opto), uses fixed program-dependent envelope. */
     void process(juce::AudioBuffer<float>& buffer, double sampleRate,
                  float threshold, std::optional<float> ratio,
                  std::optional<float> attackParam, std::optional<float> releaseParam,
@@ -34,6 +38,7 @@ public:
 
 private:
     void buildCurveCache();
+    void ensureSidechainFilters(int numChannels, double sampleRate);
     std::vector<std::tuple<float, float, float, float>> nearestKeys(float threshold, std::optional<float> ratio,
                                                                      std::optional<float> attackMs, std::optional<float> releaseMs) const;
 
@@ -42,6 +47,16 @@ private:
     std::map<CurveKey, std::pair<std::vector<float>, std::vector<float>>> curveCache_;
     float envelopeGrDb_ = 0.0f;
     float lastGrDb_ = 0.0f;
+
+    bool sidechainRolloff_ = false;
+    bool sidechainLimit_ = false;
+    double sidechainSampleRate_ = 48000.0;
+    static constexpr int kMaxSidechainChannels = 2;
+    std::vector<juce::dsp::IIR::Filter<float>> sidechainLpf_;
+    std::vector<juce::dsp::IIR::Filter<float>> sidechainShelf_;
+    juce::dsp::IIR::Coefficients<float>::Ptr lpfCoeffs_;
+    juce::dsp::IIR::Coefficients<float>::Ptr shelfCoeffs_;
+    juce::AudioBuffer<float> sidechainBuffer_;
 };
 
 } // namespace emulation
