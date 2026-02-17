@@ -136,22 +136,22 @@ void SidechainFilterSection::paint(juce::Graphics& g)
     g.fillRoundedRectangle(b, 16.0f);
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawRoundedRectangle(b, 16.0f, 2.0f);
-    const float headerH = getHeight() < 110 ? 22.0f : 28.0f;
+    const float headerH = getHeight() < 110 ? 22.0f : 36.0f;  // §6 Module card header 36px
     auto headerRect = b.removeFromTop(headerH);
     g.setColour(OmbicLookAndFeel::ombicTeal());
     g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + headerH), 16.0f);
     g.setColour(juce::Colours::white);
-    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(11.0f, true));
-    g.drawText("SC FILTER", static_cast<int>(headerRect.getX()) + 12, static_cast<int>((headerH - 11.0f) * 0.5f), 120, 14, juce::Justification::left);
+    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(13.0f, true));  // §7 Module headers 13px
+    g.drawText("SC FILTER", static_cast<int>(headerRect.getX()) + 12, static_cast<int>((headerH - 13.0f) * 0.5f), 120, 14, juce::Justification::left);
 }
 
 void SidechainFilterSection::resized()
 {
     auto r = getLocalBounds();
     const bool compact = (r.getHeight() < 110);
-    const int headerH = compact ? 22 : 28;
+    const int headerH = compact ? 22 : 36;  // §6 header 36px
     r.removeFromTop(headerH);
-    const int bodyPad = compact ? 8 : 18;
+    const int bodyPad = compact ? 8 : 14;   // §6 body padding 14px
     r.reduce(bodyPad, 0);
     r.removeFromBottom(bodyPad);
 

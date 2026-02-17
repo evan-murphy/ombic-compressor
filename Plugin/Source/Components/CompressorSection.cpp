@@ -40,10 +40,20 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
     compressLimitCombo.addItem("Limit", 2);
     compressLimitCombo.setSelectedId(1);
     compressLimitCombo.setTooltip("Opto only: Compress = normal. Limit = more high-frequency in sidechain (tighter).");
-    addAndMakeVisible(compressLimitCombo);
+    addChildComponent(compressLimitCombo); // kept for attachment; UI uses toggle
+    compressLimitCombo.setVisible(false);
+    compressLimitLabel.setVisible(false);
     compressLimitLabel.setText("COMPRESS / LIMIT", juce::dontSendNotification);
     compressLimitLabel.attachToComponent(&compressLimitCombo, true);
-    addAndMakeVisible(compressLimitLabel);
+    addChildComponent(compressLimitLabel);
+
+    compressLimitToggle_.setName("compressLimitSwitch");
+    compressLimitToggle_.setClickingTogglesState(true);
+    compressLimitToggle_.setTooltip("Opto only: Compress = normal. Limit = more high-frequency in sidechain (tighter).");
+    compressLimitToggle_.onClick = [this]() {
+        compressLimitCombo.setSelectedId(compressLimitToggle_.getToggleState() ? 2 : 1, juce::sendNotificationSync);
+    };
+    addAndMakeVisible(compressLimitToggle_);
 
     const juce::BorderSize<int> labelPadding(4, 0, 0, 0);
     const juce::Colour textCol = OmbicLookAndFeel::pluginText();
@@ -114,7 +124,7 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
     addAndMakeVisible(grMeter);
     grReadoutLabel.setText("0.0 dB", juce::dontSendNotification);
     grReadoutLabel.setJustificationType(juce::Justification::centred);
-    grReadoutLabel.setFont(OmbicLookAndFeel::getOmbicFontForPainting(12.0f, true));  // Secondary to knobs
+    grReadoutLabel.setFont(OmbicLookAndFeel::getOmbicFontForPainting(16.0f, true));  // §6 GR readout 16px
     addAndMakeVisible(grReadoutLabel);
 }
 
@@ -146,14 +156,27 @@ void CompressorSection::setModeControlsVisible(bool fetishParamsVisible)
     attackLabel.setVisible(fetishParamsVisible);
     releaseSlider.setVisible(fetishParamsVisible);
     releaseLabel.setVisible(fetishParamsVisible);
-    compressLimitCombo.setVisible(!fetishParamsVisible);
-    compressLimitLabel.setVisible(!fetishParamsVisible);
+    compressLimitToggle_.setVisible(!fetishParamsVisible);
+}
+
+void CompressorSection::setShowGrMeter(bool show)
+{
+    showGrMeter_ = show;
+    grMeter.setVisible(show);
+    grReadoutLabel.setVisible(show);
+}
+
+void CompressorSection::updateCompressLimitButtonStates()
+{
+    compressLimitToggle_.setToggleState(compressLimitCombo.getSelectedId() == 2, juce::dontSendNotification);
 }
 
 bool CompressorSection::isInteracting() const
 {
-    return modeCombo.isMouseButtonDown() || compressLimitCombo.isMouseButtonDown() || thresholdSlider.isMouseButtonDown()
-        || ratioSlider.isMouseButtonDown() || attackSlider.isMouseButtonDown() || releaseSlider.isMouseButtonDown();
+    return modeCombo.isMouseButtonDown() || compressLimitCombo.isMouseButtonDown()
+        || compressLimitToggle_.isMouseButtonDown()
+        || thresholdSlider.isMouseButtonDown() || ratioSlider.isMouseButtonDown()
+        || attackSlider.isMouseButtonDown() || releaseSlider.isMouseButtonDown();
 }
 
 void CompressorSection::setHighlight(bool on)
@@ -169,22 +192,22 @@ void CompressorSection::paint(juce::Graphics& g)
     g.fillRoundedRectangle(b, 16.0f);
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawRoundedRectangle(b, 16.0f, 2.0f);
-    const float headerH = getHeight() < 110 ? 22.0f : 28.0f;
+    const float headerH = getHeight() < 110 ? 22.0f : 36.0f;  // §6 header 36px
     auto headerRect = b.removeFromTop(headerH);
     g.setColour(OmbicLookAndFeel::ombicBlue());
     g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + headerH), 16.0f);
     g.setColour(juce::Colours::white);
-    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(11.0f, true));
-    g.drawText("COMPRESSOR", static_cast<int>(headerRect.getX()) + 12, static_cast<int>(headerRect.getY() + (headerH - 11.0f) * 0.5f), 200, 14, juce::Justification::left);
+    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(13.0f, true));  // §7 Module headers 13px
+    g.drawText("COMPRESSOR", static_cast<int>(headerRect.getX()) + 12, static_cast<int>(headerRect.getY() + (headerH - 13.0f) * 0.5f), 200, 14, juce::Justification::left);
 }
 
 void CompressorSection::resized()
 {
     auto r = getLocalBounds();
     const bool compact = (r.getHeight() < 110);
-    const int headerH = compact ? 22 : 28;
+    const int headerH = compact ? 22 : 36;  // §6 Module card header 36px
     r.removeFromTop(headerH);
-    const int bodyPad = compact ? 8 : 14;
+    const int bodyPad = compact ? 8 : 14;  // §6 body padding 14px
     r.reduce(bodyPad, 0);
     r.removeFromBottom(bodyPad);
 
@@ -195,18 +218,30 @@ void CompressorSection::resized()
     bool fetVisible = ratioSlider.isVisible();
     if (!fetVisible)
     {
-        const int limitW = compact ? 72 : 120;
-        compressLimitLabel.setBounds(x, r.getY(), limitW, labelH);
-        compressLimitCombo.setBounds(x, r.getY() + labelH, limitW, compact ? 20 : 28);
-        x += limitW + gap;
+        const int switchW = compact ? 100 : 120;
+        const int switchH = compact ? 22 : 26;
+        compressLimitToggle_.setBounds(x, r.getY() + labelH, switchW, switchH);
+        x += switchW + gap;
     }
     auto placeKnob = [&](juce::Slider& sl, juce::Label& lb, int size) {
         lb.setBounds(x, r.getY(), size + gap, labelH);
         sl.setBounds(x, r.getY() + labelH, size, size);
         x += size + gap;
     };
-    const int knobSizeOpto = compact ? 52 : 88;   // Usability: knobs are primary; Opto 88px
-    const int knobSizeFet = compact ? 46 : 72;   // FET 72px so controls are easy to use
+    const int knobSizeOpto = compact ? 52 : 80;   // §6 Opto (single) 80px diameter
+    int knobSizeFet = compact ? 46 : 60;         // §6 FET (each) 60px diameter
+    if (fetVisible)
+    {
+        int availableW = r.getWidth();
+        int requiredForFourKnobs = 4 * (knobSizeFet + gap);
+        if (showGrMeter_)
+        {
+            const int grBlockW = gap + (compact ? 20 : 24) + 8;
+            requiredForFourKnobs += grBlockW;
+        }
+        if (availableW < requiredForFourKnobs && knobSizeFet > 40)
+            knobSizeFet = juce::jmax(40, (availableW - (showGrMeter_ ? (gap + (compact ? 20 : 24) + 8) : 0) - 4 * gap) / 4);
+    }
     if (fetVisible)
     {
         placeKnob(thresholdSlider, thresholdLabel, knobSizeFet);
@@ -223,11 +258,14 @@ void CompressorSection::resized()
         x = threshX + knobSizeOpto + gap;
     }
 
-    const int grMeterW = compact ? 20 : 24;
-    const int grReadoutH = compact ? 14 : 18;   // Keep GR readout secondary to knobs
     int knobH = fetVisible ? knobSizeFet : knobSizeOpto;
-    grMeter.setBounds(x + gap, r.getY() + labelH, grMeterW, juce::jmax(20, knobH - grReadoutH));
-    grReadoutLabel.setBounds(x + gap, r.getY() + labelH + juce::jmax(20, knobH - grReadoutH), grMeterW + 8, grReadoutH);
+    if (showGrMeter_)
+    {
+        const int grMeterW = compact ? 20 : 24;
+        const int grReadoutH = compact ? 14 : 18;
+        grMeter.setBounds(x + gap, r.getY() + labelH, grMeterW, juce::jmax(20, knobH - grReadoutH));
+        grReadoutLabel.setBounds(x + gap, r.getY() + labelH + juce::jmax(20, knobH - grReadoutH), grMeterW + 8, grReadoutH);
+    }
 
     if (!fetVisible)
         thresholdSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, compact ? 44 : 56, compact ? 16 : 24);

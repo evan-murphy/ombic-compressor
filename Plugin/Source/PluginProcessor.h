@@ -4,7 +4,7 @@
 #include <memory>
 #include <vector>
 
-namespace emulation { class MVPChain; class NeonTapeSaturation; }
+namespace emulation { class MVPChain; class NeonTapeSaturation; class PwmChain; class IronTransformer; }
 
 //==============================================================================
 class OmbicCompressorProcessor : public juce::AudioProcessor
@@ -65,6 +65,9 @@ public:
     static const char* paramScFrequency;
     static const char* paramScListen;
     static const char* paramMainVuDisplay;
+    static const char* paramPwmSpeed;
+    static const char* paramIron;
+    static const char* paramAutoGain;
 
     /** True when SC Listen is active (for header indicator). */
     bool isScListenActive() const;
@@ -88,8 +91,13 @@ private:
     juce::File dataRoot_;
     std::unique_ptr<emulation::MVPChain> fetChain_;
     std::unique_ptr<emulation::MVPChain> optoChain_;
+    std::unique_ptr<emulation::PwmChain> pwmChain_;
+    std::unique_ptr<emulation::IronTransformer> iron_;
     std::unique_ptr<emulation::NeonTapeSaturation> standaloneNeon_;
     void ensureChains();
+    void ensurePwmChain();
+    /** Parameter-based estimate of makeup gain (dB) for Auto Gain. Uses nominal threshold/ratio/speed. */
+    float estimateMakeupDb(int mode, float thresholdRaw, float ratio, float attackParam, float releaseParam, float speedParam) const;
 
     // Sidechain filter module: HPF on mono sum for detector; true bypass at 20 Hz
     static constexpr float kScFilterOffHz = 20.0f;

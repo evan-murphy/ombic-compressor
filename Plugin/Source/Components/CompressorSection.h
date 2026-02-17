@@ -23,19 +23,25 @@ public:
 
     /** fetishParamsVisible: show ratio/attack/release (FET). When false (Opto), show Compress/Limit instead. */
     void setModeControlsVisible(bool fetishParamsVisible);
+    /** When false, hide GR meter and readout (e.g. v2 uses main view + output for GR). */
+    void setShowGrMeter(bool show);
     /** Call from editor timer to refresh GR readout from processor. */
     void updateGrReadout();
+    /** Call from editor timer to sync Compress/Limit toggle state from param. */
+    void updateCompressLimitButtonStates();
     /** True if user is dragging any control in this section. */
     bool isInteracting() const;
     void setHighlight(bool on);
 
 private:
     bool highlighted_ = false;
+    bool showGrMeter_ = true;
     OmbicCompressorProcessor& proc;
     OmbicLookAndFeel ombicLf;
 
     juce::ComboBox modeCombo;
     juce::ComboBox compressLimitCombo;
+    juce::ToggleButton compressLimitToggle_;
     juce::Slider thresholdSlider;
     juce::Slider ratioSlider;
     juce::Slider attackSlider;

@@ -109,26 +109,26 @@ void OutputSection::paint(juce::Graphics& g)
     g.fillRoundedRectangle(b, 16.0f);
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawRoundedRectangle(b, 16.0f, 2.0f);
-    const float headerH = getHeight() < 110 ? 22.0f : 28.0f;
+    const float headerH = getHeight() < 110 ? 22.0f : 36.0f;  // §6 header 36px
     auto headerRect = b.removeFromTop(headerH);
     g.setColour(OmbicLookAndFeel::ombicPurple());
     g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + headerH), 16.0f);
     g.setColour(juce::Colours::white);
-    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(11.0f, true));
-    g.drawText("OUTPUT", static_cast<int>(headerRect.getX()) + 12, static_cast<int>((headerH - 11.0f) * 0.5f), 200, 14, juce::Justification::left);
+    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(13.0f, true));  // §7 Module headers 13px
+    g.drawText("OUTPUT", static_cast<int>(headerRect.getX()) + 12, static_cast<int>((headerH - 13.0f) * 0.5f), 200, 14, juce::Justification::left);
 }
 
 void OutputSection::resized()
 {
     auto r = getLocalBounds();
     const bool compact = (r.getHeight() < 110);
-    const int headerH = compact ? 22 : 28;
+    const int headerH = compact ? 22 : 36;  // §6 Module card header 36px
     r.removeFromTop(headerH);
-    r.reduce(compact ? 8 : 18, compact ? 8 : 18);
+    r.reduce(compact ? 8 : 14, compact ? 8 : 14);  // §6 body padding 14px
     // Spec §8: meter 6px wide, 80px tall
     const int meterW = 6;
     const int meterH = compact ? 40 : 80;
-    const int knobSize = compact ? 44 : 64;   // Usability: output knob prominent
+    const int knobSize = compact ? 44 : 56;   // §6 Output knob 56px diameter
     const int gap = compact ? 8 : 14;
     const int labelH = compact ? 10 : 18;
     const int meterLabelH = compact ? 8 : 12;

@@ -299,7 +299,7 @@ void SaturatorSection::paint(juce::Graphics& g)
     g.fillRoundedRectangle(b, 16.0f);
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawRoundedRectangle(b, 16.0f, 2.0f);
-    const float headerH = getHeight() < 110 ? 22.0f : 28.0f;
+    const float headerH = getHeight() < 110 ? 22.0f : 36.0f;  // §6 header 36px
     auto headerRect = b.removeFromTop(headerH);
     g.setGradientFill(juce::ColourGradient(
         juce::Colour(0xFFcc3a6e), headerRect.getX(), headerRect.getY(),
@@ -307,27 +307,39 @@ void SaturatorSection::paint(juce::Graphics& g)
     g.fillRoundedRectangle(headerRect.withBottom(headerRect.getY() + headerH), 16.0f);
 
     g.setColour(juce::Colours::white);
-    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(11.0f, true));
-    g.drawText("NEON BULB SATURATION", static_cast<int>(headerRect.getX()) + 12, static_cast<int>((headerH - 11.0f) * 0.5f), 220, 14, juce::Justification::left);
+    g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(13.0f, true));  // §7 Module headers 13px
+    // §5 Neon section: "NEON" or "NEON SATURATION" when knobs only (v2)
+    g.drawText(scopeVisible_ ? "NEON BULB SATURATION" : "NEON", static_cast<int>(headerRect.getX()) + 12, static_cast<int>((headerH - 13.0f) * 0.5f), 220, 14, juce::Justification::left);
+}
+
+void SaturatorSection::setScopeVisible(bool visible)
+{
+    if (scopeVisible_ == visible) return;
+    scopeVisible_ = visible;
+    scopeComponent_.setVisible(visible);
+    resized();
 }
 
 void SaturatorSection::resized()
 {
     auto r = getLocalBounds();
     const bool compact = (r.getHeight() < 110);
-    const int headerH = compact ? 22 : 28;
+    const int headerH = compact ? 22 : 36;  // §6 Module card header 36px
     r.removeFromTop(headerH);
     r.reduce(compact ? 8 : 14, compact ? 8 : 14);
     const int labelH = compact ? 6 : 14;
-    const int knobSize = compact ? 36 : 72;   // larger knobs: 72px non-compact so section has more weight
-    const int gap = compact ? 4 : 14;
+    // §6 Neon knobs 48px, gap 14px; when scope visible use larger for v1
+    const int knobSize = compact ? 36 : (scopeVisible_ ? 72 : 48);
+    const int gap = compact ? 4 : (scopeVisible_ ? 14 : 14);
     const int columnW = knobSize + gap;
 
-    // Always show the neon bulb scope (tube + waveform); in compact mode use a thin strip so it stays visible
-    const int scopeH = compact ? 22 : 90;   // slightly taller scope when we have room
-    const int marginBelowScope = compact ? 2 : 12;
-    scopeComponent_.setBounds(r.getX(), r.getY(), r.getWidth(), scopeH);
-    r.removeFromTop(scopeH + marginBelowScope);
+    if (scopeVisible_)
+    {
+        const int scopeH = compact ? 22 : 90;
+        const int marginBelowScope = compact ? 2 : 12;
+        scopeComponent_.setBounds(r.getX(), r.getY(), r.getWidth(), scopeH);
+        r.removeFromTop(scopeH + marginBelowScope);
+    }
 
     int x = r.getX();
     auto place = [&](juce::Slider& sl, juce::Label& lb) {

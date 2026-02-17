@@ -150,7 +150,7 @@ void OmbicLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& but
 
     if (isPill)
     {
-        // Spec §6: mode pills — active = ombicBlue fill; inactive = transparent, pluginBorderStrong
+        // Spec §6: mode pills (Opto/FET) — active = ombicBlue fill; inactive = transparent, pluginBorderStrong
         const bool selected = button.getToggleState();
         const float radius = bounds.getHeight() * 0.5f;
         if (selected)
@@ -239,6 +239,46 @@ void OmbicLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& butto
     g.setColour(c);
     g.setFont(getOmbicFont(14.0f, 900.0f));
     g.drawText(button.getButtonText(), button.getLocalBounds(), juce::Justification::centred);
+}
+
+void OmbicLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& button,
+                                        bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
+{
+    if (!button.getName().contains("compressLimitSwitch"))
+    {
+        LookAndFeel_V4::drawToggleButton(g, button, shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
+        return;
+    }
+    // Compress/Limit switch: horizontal track, thumb left = Compress (off), right = Limit (on)
+    auto bounds = button.getLocalBounds().toFloat();
+    const float radius = bounds.getHeight() * 0.5f;
+    const float margin = 2.0f;
+    auto track = bounds.reduced(margin);
+    // Track background
+    g.setColour(pluginSurface());
+    g.fillRoundedRectangle(track, radius);
+    g.setColour(pluginBorder());
+    g.drawRoundedRectangle(track, radius, 1.0f);
+    // Thumb: half-width, slides left/right
+    const float thumbW = track.getWidth() * 0.5f - margin;
+    const float thumbH = track.getHeight() - margin * 2.0f;
+    const float thumbRadius = thumbH * 0.5f;
+    float thumbX = track.getX() + margin;
+    if (button.getToggleState())
+        thumbX = track.getRight() - margin - thumbW;
+    auto thumb = juce::Rectangle<float>(thumbX, track.getY() + margin, thumbW, thumbH);
+    g.setColour(ombicBlue());
+    g.fillRoundedRectangle(thumb, thumbRadius);
+    g.setColour(ombicBlue().brighter(0.2f));
+    g.drawRoundedRectangle(thumb.reduced(0.5f), thumbRadius - 0.5f, 1.0f);
+    // Labels: Compress left half, Limit right half
+    g.setFont(getOmbicFont(9.0f, 700.0f));
+    auto leftHalf = track.withWidth(thumbW).reduced(4, 0);
+    auto rightHalf = track.withLeft(track.getRight() - thumbW).withWidth(thumbW).reduced(4, 0);
+    g.setColour(button.getToggleState() ? pluginMuted() : pluginText());
+    g.drawText("Compress", leftHalf, juce::Justification::centred);
+    g.setColour(button.getToggleState() ? pluginText() : pluginMuted());
+    g.drawText("Limit", rightHalf, juce::Justification::centred);
 }
 
 void OmbicLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bool,

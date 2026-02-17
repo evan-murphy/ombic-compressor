@@ -26,6 +26,10 @@ public:
      *  the UI always shows human-readable percentages (e.g. "50%") instead of 0–1.0. */
     void applyPercentDisplay();
 
+    /** When false (v2 layout), scope is hidden and section shows knobs only. Default true. */
+    void setScopeVisible(bool visible);
+    bool isScopeVisible() const { return scopeVisible_; }
+
     bool isInteracting() const;
     void setHighlight(bool on);
 
@@ -46,6 +50,7 @@ private:
 
     bool hovered_ = false;
     bool highlighted_ = false;
+    bool scopeVisible_ = true;
     [[maybe_unused]] OmbicCompressorProcessor& proc;
     OmbicLookAndFeel ombicLf;
 

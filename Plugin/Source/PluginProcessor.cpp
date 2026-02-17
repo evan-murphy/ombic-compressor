@@ -1,5 +1,8 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#if OMBIC_USE_V2_EDITOR
+#include "PluginEditorV2.h"
+#endif
 #include "Emulation/DataLoader.h"
 #include "Emulation/MVPChain.h"
 #if JUCE_MAC
@@ -54,6 +57,9 @@ const char* OmbicCompressorProcessor::paramOptoCompressLimit   = "opto_compress_
 const char* OmbicCompressorProcessor::paramScFrequency        = "sc_frequency";
 const char* OmbicCompressorProcessor::paramScListen             = "sc_listen";
 const char* OmbicCompressorProcessor::paramMainVuDisplay        = "main_vu_display";
+const char* OmbicCompressorProcessor::paramPwmSpeed           = "pwm_speed";
+const char* OmbicCompressorProcessor::paramIron                = "iron";
+const char* OmbicCompressorProcessor::paramAutoGain            = "auto_gain";
 
 //==============================================================================
 juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::createParameterLayout()
@@ -63,7 +69,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::cr
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{ paramCompressorMode, 1 },
         "Compressor Mode",
-        juce::StringArray{ "Opto", "FET" },
+        juce::StringArray{ "Opto", "FET", "PWM" },
         0));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
@@ -180,6 +186,28 @@ juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::cr
         juce::StringArray{ "Fancy", "Simple" },
         0));
 
+    // PWM: single Speed control 0–100 (replaces Attack/Release in PWM mode)
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ paramPwmSpeed, 1 },
+        "Speed",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f, 1.0f),
+        40.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")));
+
+    // Iron: transformer saturation 0–100%, default 0 (bypass)
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ paramIron, 1 },
+        "Iron",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f, 1.0f),
+        0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")));
+
+    // Auto Gain: parameter-based auto-makeup (additive to manual Output)
+    layout.add(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{ paramAutoGain, 1 },
+        "Auto Gain",
+        false));
+
     return layout;
 }
 
@@ -259,7 +287,11 @@ bool OmbicCompressorProcessor::getScopeWaveformSamples(std::vector<float>& out) 
 
 juce::AudioProcessorEditor* OmbicCompressorProcessor::createEditor()
 {
+#if OMBIC_USE_V2_EDITOR
+    return new OmbicCompressorEditorV2(*this);
+#else
     return new OmbicCompressorEditor(*this);
+#endif
 }
 
 void OmbicCompressorProcessor::ensureChains()

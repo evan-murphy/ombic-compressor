@@ -15,6 +15,9 @@ if(NOT EXISTS "${OMBIC_LOGO_FILE}")
     message(FATAL_ERROR "Logo missing: ${OMBIC_LOGO_FILE} — add Ombic_Alpha.png to Plugin/Assets/ to build.")
 endif()
 
+# v2 editor: main view as tube, Neon knobs only. Set to OFF to use v1 editor.
+option(OMBIC_USE_V2_EDITOR "Use v2 editor (main view as tube)" ON)
+
 # Curve data: required and always packaged with the plugin (no dependency on external tools)
 set(OMBIC_CURVE_FETISH "${CMAKE_SOURCE_DIR}/output/fetish_v2")
 set(OMBIC_CURVE_LALA "${CMAKE_SOURCE_DIR}/output/lala_v2")
@@ -55,19 +58,28 @@ juce_add_plugin(OmbicCompressor
     NEEDS_MIDI_OUTPUT FALSE
 )
 
+set(OMBIC_PLUGIN_SOURCES
+    Source/PluginProcessor.cpp
+    Source/PluginEditor.cpp
+    Source/Components/OmbicLookAndFeel.cpp
+    Source/Components/CompressorSection.cpp
+    Source/Components/SaturatorSection.cpp
+    Source/Components/OutputSection.cpp
+    Source/Components/SidechainFilterSection.cpp
+    Source/Components/MeterStrip.cpp
+    Source/Components/TransferCurveComponent.cpp
+    Source/Components/MainVuComponent.cpp
+    Source/Emulation/DataLoader.cpp
+)
+if(OMBIC_USE_V2_EDITOR)
+    list(APPEND OMBIC_PLUGIN_SOURCES
+        Source/PluginEditorV2.cpp
+        Source/Components/MainViewAsTubeComponent.cpp
+    )
+endif()
 target_sources(OmbicCompressor
     PRIVATE
-        Source/PluginProcessor.cpp
-        Source/PluginEditor.cpp
-        Source/Components/OmbicLookAndFeel.cpp
-        Source/Components/CompressorSection.cpp
-        Source/Components/SaturatorSection.cpp
-        Source/Components/OutputSection.cpp
-        Source/Components/SidechainFilterSection.cpp
-        Source/Components/MeterStrip.cpp
-        Source/Components/TransferCurveComponent.cpp
-        Source/Components/MainVuComponent.cpp
-        Source/Emulation/DataLoader.cpp
+        ${OMBIC_PLUGIN_SOURCES}
         Source/Emulation/MeasuredCompressor.cpp
         Source/Emulation/FRCharacter.cpp
         Source/Emulation/THDCharacter.cpp
@@ -80,6 +92,7 @@ target_compile_definitions(OmbicCompressor
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
+        $<$<BOOL:${OMBIC_USE_V2_EDITOR}>:OMBIC_USE_V2_EDITOR>
 )
 
 target_link_libraries(OmbicCompressor

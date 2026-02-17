@@ -40,6 +40,8 @@ public:
                               const juce::Colour&, bool isMouseOver, bool isButtonDown) override;
     void drawButtonText(juce::Graphics& g, juce::TextButton& button,
                        bool isMouseOver, bool isButtonDown) override;
+    void drawToggleButton(juce::Graphics& g, juce::ToggleButton& button,
+                         bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
     void drawComboBox(juce::Graphics& g, int width, int height, bool isDown, int buttonX,
                      int buttonY, int buttonW, int buttonH, juce::ComboBox& box) override;
     void positionComboBoxText(juce::ComboBox& box, juce::Label& label) override;
