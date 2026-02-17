@@ -35,12 +35,14 @@ void TransferCurveComponent::paint(juce::Graphics& g)
     if (auto* r = apvts.getRawParameterValue(OmbicCompressorProcessor::paramRatio))
         ratio = r->load();
     if (auto* r = apvts.getRawParameterValue(OmbicCompressorProcessor::paramCompressorMode))
-        mode = static_cast<int>(r->load() + 0.5f);
+        mode = juce::jlimit(0, 2, static_cast<int>(r->load() * 2.0f + 0.5f));
 
-    // FET: threshold 0..100 -> dB -60..0; Opto: same 0..100 for display, but gentler curve
+    // FET: threshold 0..100 -> dB -60..0; Opto: same 0..100 for display, but gentler curve; PWM: soft knee
     float threshDb = -60.0f + (thresholdRaw / 100.0f) * 60.0f;
     threshDb = juce::jlimit(dbMin, dbMax, threshDb);
-    float displayRatio = (mode == 1) ? juce::jmax(1.0f, ratio) : 2.5f; // Opto gentler
+    float displayRatio = (mode == 1) ? juce::jmax(1.0f, ratio) : (mode == 2) ? juce::jlimit(1.5f, 8.0f, ratio) : 2.5f;
+    const bool softKnee = (mode == 2);
+    const float kneeDb = softKnee ? 3.0f : 0.0f;
 
     // Grid 6×6, 4% white; unity line dashed 8% white
     g.setColour(juce::Colour(0x0affffff));
@@ -54,21 +56,36 @@ void TransferCurveComponent::paint(juce::Graphics& g)
     float dashLen = 3.0f;
     g.drawDashedLine(juce::Line<float>(dbToX(dbMin), dbToY(dbMin), dbToX(dbMax), dbToY(dbMax)), &dashLen, 1, 1.0f);
 
-    // Transfer curve: below threshold out = in, above out = thresh + (in - thresh) / ratio
+    // Transfer curve: below threshold out = in; above (with optional soft knee) out = thresh + (in - thresh) / ratio
     juce::Path curve;
     const int steps = 64;
     bool started = false;
     for (int i = 0; i <= steps; ++i)
     {
         float inDb = dbMin + (dbMax - dbMin) * static_cast<float>(i) / static_cast<float>(steps);
-        float outDb = inDb <= threshDb ? inDb : threshDb + (inDb - threshDb) / displayRatio;
+        float outDb;
+        if (inDb <= threshDb - kneeDb)
+            outDb = inDb;
+        else if (inDb >= threshDb + kneeDb)
+            outDb = threshDb + (inDb - threshDb) / displayRatio;
+        else if (kneeDb > 0.0f)
+        {
+            float t = (inDb - (threshDb - kneeDb)) / (2.0f * kneeDb);
+            t = t * t * (3.0f - 2.0f * t);
+            float linearOut = inDb;
+            float compressedOut = threshDb + (inDb - threshDb) / displayRatio;
+            outDb = linearOut + t * (compressedOut - linearOut);
+        }
+        else
+            outDb = threshDb + (inDb - threshDb) / displayRatio;
         outDb = juce::jlimit(dbMin, dbMax, outDb);
         float x = dbToX(inDb);
         float y = dbToY(outDb);
         if (!started) { curve.startNewSubPath(x, y); started = true; }
         else curve.lineTo(x, y);
     }
-    g.setColour(OmbicLookAndFeel::ombicBlue());
+    juce::Colour curveCol = (mode == 2) ? OmbicLookAndFeel::ombicTeal() : OmbicLookAndFeel::ombicBlue();
+    g.setColour(curveCol);
     g.strokePath(curve, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
     // Current input/output point (pink accent + red core per OMBIC fun colors)

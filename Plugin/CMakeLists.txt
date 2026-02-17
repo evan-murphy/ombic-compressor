@@ -85,6 +85,9 @@ target_sources(OmbicCompressor
         Source/Emulation/THDCharacter.cpp
         Source/Emulation/NeonTapeSaturation.cpp
         Source/Emulation/MVPChain.cpp
+        Source/Emulation/PwmCompressor.cpp
+        Source/Emulation/PwmChain.cpp
+        Source/Emulation/IronTransformer.cpp
 )
 
 target_compile_definitions(OmbicCompressor

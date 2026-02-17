@@ -18,6 +18,8 @@ public:
     void setHighlight(bool on);
 
     juce::Slider& getOutputSlider() { return outputSlider; }
+    juce::Slider& getIronSlider() { return ironSlider; }
+    juce::ToggleButton& getAutoGainButton() { return autoGainButton; }
 
     /** Call from editor timer to refresh GR readout. */
     void updateGrReadout();
@@ -43,8 +45,11 @@ private:
     LevelMeterComponent outMeter_;
     juce::Label inLabel_;
     juce::Label outLabel_;
+    juce::Slider ironSlider;
+    juce::Label ironLabel;
     juce::Slider outputSlider;
     juce::Label outputLabel;
+    juce::ToggleButton autoGainButton;
     juce::Label grLabel_;       // "GR" 8px above value
     juce::Label grReadoutLabel_;
     float smoothedGrDb_ = 0.0f;

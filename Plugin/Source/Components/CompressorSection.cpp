@@ -29,6 +29,7 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
 
     modeCombo.addItem("Opto", 1);
     modeCombo.addItem("FET", 2);
+    modeCombo.addItem("PWM", 3);
     modeCombo.setSelectedId(1); // will be overwritten by attachment
     addAndMakeVisible(modeCombo);
     modeCombo.setVisible(false); // editor uses pills instead
@@ -121,6 +122,20 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
     releaseLabel.setFont(labelFont);
     addAndMakeVisible(releaseLabel);
 
+    speedSlider.setName("pwm_speed");
+    speedSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    speedSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    speedSlider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xff00a67e)); // ombicTeal
+    speedSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 52, 18);
+    speedSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
+    speedSlider.setVelocityBasedMode(false);
+    addAndMakeVisible(speedSlider);
+    speedLabel.setText("SPEED", juce::dontSendNotification);
+    speedLabel.setBorderSize(labelPadding);
+    speedLabel.setColour(juce::Label::textColourId, labelCol);
+    speedLabel.setFont(labelFont);
+    addAndMakeVisible(speedLabel);
+
     addAndMakeVisible(grMeter);
     grReadoutLabel.setText("0.0 dB", juce::dontSendNotification);
     grReadoutLabel.setJustificationType(juce::Justification::centred);
@@ -148,15 +163,20 @@ void CompressorSection::updateGrReadout()
         grReadoutLabel.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicRed());
 }
 
-void CompressorSection::setModeControlsVisible(bool fetishParamsVisible)
+void CompressorSection::setModeControlsVisible(int mode)
 {
-    ratioSlider.setVisible(fetishParamsVisible);
-    ratioLabel.setVisible(fetishParamsVisible);
-    attackSlider.setVisible(fetishParamsVisible);
-    attackLabel.setVisible(fetishParamsVisible);
-    releaseSlider.setVisible(fetishParamsVisible);
-    releaseLabel.setVisible(fetishParamsVisible);
-    compressLimitToggle_.setVisible(!fetishParamsVisible);
+    const bool isOpto = (mode == 0);
+    const bool isFet = (mode == 1);
+    const bool isPwm = (mode == 2);
+    ratioSlider.setVisible(isFet || isPwm);
+    ratioLabel.setVisible(isFet || isPwm);
+    attackSlider.setVisible(isFet);
+    attackLabel.setVisible(isFet);
+    releaseSlider.setVisible(isFet);
+    releaseLabel.setVisible(isFet);
+    speedSlider.setVisible(isPwm);
+    speedLabel.setVisible(isPwm);
+    compressLimitToggle_.setVisible(isOpto);
 }
 
 void CompressorSection::setShowGrMeter(bool show)
@@ -176,7 +196,8 @@ bool CompressorSection::isInteracting() const
     return modeCombo.isMouseButtonDown() || compressLimitCombo.isMouseButtonDown()
         || compressLimitToggle_.isMouseButtonDown()
         || thresholdSlider.isMouseButtonDown() || ratioSlider.isMouseButtonDown()
-        || attackSlider.isMouseButtonDown() || releaseSlider.isMouseButtonDown();
+        || attackSlider.isMouseButtonDown() || releaseSlider.isMouseButtonDown()
+        || speedSlider.isMouseButtonDown();
 }
 
 void CompressorSection::setHighlight(bool on)
@@ -215,8 +236,10 @@ void CompressorSection::resized()
     const int gap = compact ? 10 : 16;  // Spec §6: 16px gap between FET knobs
     modeCombo.setBounds(0, 0, 1, 1);
     int x = r.getX();
-    bool fetVisible = ratioSlider.isVisible();
-    if (!fetVisible)
+    bool pwmVisible = speedSlider.isVisible();
+    bool fetVisible = ratioSlider.isVisible() && !pwmVisible;
+    bool optoVisible = !fetVisible && !pwmVisible;
+    if (optoVisible)
     {
         const int switchW = compact ? 100 : 120;
         const int switchH = compact ? 22 : 26;
@@ -230,19 +253,26 @@ void CompressorSection::resized()
     };
     const int knobSizeOpto = compact ? 52 : 80;   // §6 Opto (single) 80px diameter
     int knobSizeFet = compact ? 46 : 60;         // §6 FET (each) 60px diameter
-    if (fetVisible)
+    const int numKnobs = pwmVisible ? 3 : (fetVisible ? 4 : 1);
+    if (fetVisible || pwmVisible)
     {
         int availableW = r.getWidth();
-        int requiredForFourKnobs = 4 * (knobSizeFet + gap);
+        int requiredForKnobs = numKnobs * (knobSizeFet + gap);
         if (showGrMeter_)
         {
             const int grBlockW = gap + (compact ? 20 : 24) + 8;
-            requiredForFourKnobs += grBlockW;
+            requiredForKnobs += grBlockW;
         }
-        if (availableW < requiredForFourKnobs && knobSizeFet > 40)
-            knobSizeFet = juce::jmax(40, (availableW - (showGrMeter_ ? (gap + (compact ? 20 : 24) + 8) : 0) - 4 * gap) / 4);
+        if (availableW < requiredForKnobs && knobSizeFet > 40)
+            knobSizeFet = juce::jmax(40, (availableW - (showGrMeter_ ? (gap + (compact ? 20 : 24) + 8) : 0) - numKnobs * gap) / numKnobs);
     }
-    if (fetVisible)
+    if (pwmVisible)
+    {
+        placeKnob(thresholdSlider, thresholdLabel, knobSizeFet);
+        placeKnob(ratioSlider, ratioLabel, knobSizeFet);
+        placeKnob(speedSlider, speedLabel, knobSizeFet);
+    }
+    else if (fetVisible)
     {
         placeKnob(thresholdSlider, thresholdLabel, knobSizeFet);
         placeKnob(ratioSlider, ratioLabel, knobSizeFet);
@@ -258,7 +288,7 @@ void CompressorSection::resized()
         x = threshX + knobSizeOpto + gap;
     }
 
-    int knobH = fetVisible ? knobSizeFet : knobSizeOpto;
+    int knobH = (fetVisible || pwmVisible) ? knobSizeFet : knobSizeOpto;
     if (showGrMeter_)
     {
         const int grMeterW = compact ? 20 : 24;
@@ -267,11 +297,11 @@ void CompressorSection::resized()
         grReadoutLabel.setBounds(x + gap, r.getY() + labelH + juce::jmax(20, knobH - grReadoutH), grMeterW + 8, grReadoutH);
     }
 
-    if (!fetVisible)
+    if (optoVisible)
         thresholdSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, compact ? 44 : 56, compact ? 16 : 24);
     else
         thresholdSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, compact ? 40 : 52, compact ? 14 : 18);
-    float valueFontSize = fetVisible ? (compact ? 12.0f : 14.0f) : (compact ? 14.0f : 20.0f);
+    float valueFontSize = (fetVisible || pwmVisible) ? (compact ? 12.0f : 14.0f) : (compact ? 14.0f : 20.0f);
     for (int i = 0; i < thresholdSlider.getNumChildComponents(); ++i)
     {
         if (auto* lb = dynamic_cast<juce::Label*>(thresholdSlider.getChildComponent(i)))

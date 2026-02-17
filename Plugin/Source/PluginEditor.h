@@ -39,6 +39,7 @@ private:
 
     juce::TextButton optoPill_;
     juce::TextButton fetPill_;
+    juce::TextButton pwmPill_;
 
     SidechainFilterSection sidechainFilterSection;
     CompressorSection compressorSection;
@@ -59,7 +60,10 @@ private:
     std::unique_ptr<SliderAttachment> ratioAttachment;
     std::unique_ptr<SliderAttachment> attackAttachment;
     std::unique_ptr<SliderAttachment> releaseAttachment;
+    std::unique_ptr<SliderAttachment> speedAttachment;
     std::unique_ptr<SliderAttachment> makeupAttachment;
+    std::unique_ptr<SliderAttachment> ironAttachment;
+    std::unique_ptr<ButtonAttachment> autoGainAttachment;
     std::unique_ptr<SliderAttachment> neonDriveAttachment;
     std::unique_ptr<SliderAttachment> neonIntensityAttachment;
     std::unique_ptr<SliderAttachment> neonToneAttachment;

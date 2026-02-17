@@ -48,6 +48,23 @@ OutputSection::OutputSection(OmbicCompressorProcessor& processor)
     outLabel_.setColour(juce::Label::textColourId, labelCol);
     addAndMakeVisible(inLabel_);
     addAndMakeVisible(outLabel_);
+    ironSlider.setName("iron");
+    ironSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    ironSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    ironSlider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xffe5a800)); // ombicYellow
+    ironSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 40, 16);
+    ironSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
+    ironSlider.setVelocityBasedMode(false);
+    addAndMakeVisible(ironSlider);
+    ironLabel.setText("IRON", juce::dontSendNotification);
+    ironLabel.setBorderSize(labelPadding);
+    ironLabel.setColour(juce::Label::textColourId, labelCol);
+    ironLabel.setFont(labelFont);
+    addAndMakeVisible(ironLabel);
+    autoGainButton.setName("autoGain");
+    autoGainButton.setButtonText("Auto Gain");
+    autoGainButton.setClickingTogglesState(true);
+    addAndMakeVisible(autoGainButton);
     grLabel_.setText("GR", juce::dontSendNotification);
     grLabel_.setFont(OmbicLookAndFeel::getOmbicFontForPainting(8.0f, true));
     grLabel_.setColour(juce::Label::textColourId, labelCol);
@@ -80,7 +97,7 @@ OutputSection::~OutputSection()
 
 bool OutputSection::isInteracting() const
 {
-    return outputSlider.isMouseButtonDown();
+    return outputSlider.isMouseButtonDown() || ironSlider.isMouseButtonDown();
 }
 
 void OutputSection::setHighlight(bool on)
@@ -128,23 +145,29 @@ void OutputSection::resized()
     // Spec §8: meter 6px wide, 80px tall
     const int meterW = 6;
     const int meterH = compact ? 40 : 80;
-    const int knobSize = compact ? 44 : 56;   // §6 Output knob 56px diameter
-    const int gap = compact ? 8 : 14;
+    const int ironKnobSize = compact ? 40 : 48;  // §4.5 Iron 48px
+    const int outputKnobSize = compact ? 44 : 56;   // §6 Output knob 56px diameter
+    const int gap = compact ? 6 : 10;
     const int labelH = compact ? 10 : 18;
     const int meterLabelH = compact ? 8 : 12;
-    const int minRowW = meterW + gap + knobSize + gap + meterW;
+    const int minRowW = meterW + gap + ironKnobSize + gap + outputKnobSize + gap + meterW;
     int rowW = juce::jmin(r.getWidth(), minRowW);
     int startX = r.getX() + (r.getWidth() - rowW) / 2;
     int x = startX;
     inMeter_.setBounds(x, r.getY() + labelH, meterW, meterH);
     inLabel_.setBounds(x - 2, r.getY() + labelH + meterH + 2, meterW + 4, meterLabelH);
     x += meterW + gap;
-    outputLabel.setBounds(x, r.getY(), knobSize, labelH);
-    outputSlider.setBounds(x, r.getY() + labelH, knobSize, knobSize);
-    x += knobSize + gap;
+    ironLabel.setBounds(x, r.getY(), ironKnobSize + gap, labelH);
+    ironSlider.setBounds(x, r.getY() + labelH, ironKnobSize, ironKnobSize);
+    x += ironKnobSize + gap;
+    outputLabel.setBounds(x, r.getY(), outputKnobSize, labelH);
+    outputSlider.setBounds(x, r.getY() + labelH, outputKnobSize, outputKnobSize);
+    x += outputKnobSize + gap;
     outMeter_.setBounds(x, r.getY() + labelH, meterW, meterH);
     outLabel_.setBounds(x - 2, r.getY() + labelH + meterH + 2, meterW + 4, meterLabelH);
     const int grValueH = compact ? 14 : 22;
-    grLabel_.setBounds(r.getX(), r.getY() + labelH + meterH + 4, r.getWidth(), meterLabelH);
-    grReadoutLabel_.setBounds(r.getX(), r.getY() + labelH + meterH + 4 + meterLabelH, r.getWidth(), grValueH);
+    const int toggleH = compact ? 18 : 22;
+    autoGainButton.setBounds(r.getX(), r.getY() + labelH + meterH + 4, 80, toggleH);
+    grLabel_.setBounds(r.getX(), r.getY() + labelH + meterH + 4 + toggleH, r.getWidth(), meterLabelH);
+    grReadoutLabel_.setBounds(r.getX(), r.getY() + labelH + meterH + 4 + toggleH + meterLabelH, r.getWidth(), grValueH);
 }

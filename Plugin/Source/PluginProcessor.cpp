@@ -5,6 +5,8 @@
 #endif
 #include "Emulation/DataLoader.h"
 #include "Emulation/MVPChain.h"
+#include "Emulation/PwmChain.h"
+#include "Emulation/IronTransformer.h"
 #if JUCE_MAC
 #include <dlfcn.h>
 #endif
@@ -245,6 +247,8 @@ void OmbicCompressorProcessor::updateSidechainFilterCoeffs(float frequencyHz)
 void OmbicCompressorProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     sampleRateHz = sampleRate;
+    pwmChain_.reset();
+    iron_.reset();
     inputRms.reset(sampleRate, 0.05);
     outputRms.reset(sampleRate, 0.05);
     smoothedScFrequency_.reset(sampleRate, 0.015);  // 15 ms ramp
@@ -258,6 +262,8 @@ void OmbicCompressorProcessor::releaseResources()
 {
     fetChain_.reset();
     optoChain_.reset();
+    pwmChain_.reset();
+    iron_.reset();
     standaloneNeon_.reset();
 }
 
@@ -346,6 +352,24 @@ void OmbicCompressorProcessor::ensureChains()
         curveDataLoaded_.store(true);
 }
 
+void OmbicCompressorProcessor::ensurePwmChain()
+{
+    if (pwmChain_) return;
+    pwmChain_ = std::make_unique<emulation::PwmChain>(
+        sampleRateHz, true, true, 0.02f, 1000.0f, 0.0f, 0.92f, 1.0f, false);
+}
+
+float OmbicCompressorProcessor::estimateMakeupDb(int mode, float thresholdRaw, float ratio,
+                                                 float attackParam, float releaseParam, float speedParam) const
+{
+    float thresholdDb = -60.0f + (thresholdRaw / 100.0f) * 60.0f;
+    float peakDb = -6.0f;
+    if (peakDb <= thresholdDb) return 0.0f;
+    float over = peakDb - thresholdDb;
+    float grDb = over * (1.0f - 1.0f / juce::jmax(1.5f, ratio));
+    return juce::jlimit(0.0f, 12.0f, grDb);
+}
+
 void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -393,13 +417,17 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         sidechainStereoForListen_.copyFrom(ch, 0, sidechainMonoBuffer_, 0, 0, numSamples);
 
     const bool neonOn = true; /* Neon always in path; use Mix for dry/wet (0 = dry). */
-    const int mode = static_cast<int>(apvts.getRawParameterValue(paramCompressorMode)->load() + 0.5f);
+    const float modeVal = apvts.getRawParameterValue(paramCompressorMode)->load();
+    const int mode = juce::jlimit(0, 2, static_cast<int>(modeVal * 2.0f + 0.5f));
     const float thresholdRaw = apvts.getRawParameterValue(paramThreshold)->load();
     const float ratio = apvts.getRawParameterValue(paramRatio)->load();
     const float attackParam = apvts.getRawParameterValue(paramAttack)->load();
     const float releaseParam = apvts.getRawParameterValue(paramRelease)->load();
+    const float speedParam = apvts.getRawParameterValue(paramPwmSpeed)->load();
     float makeupDb = apvts.getRawParameterValue(paramMakeupGainDb)->load();
     makeupDb = juce::jlimit(-24.0f, 12.0f, makeupDb);  // Safe listening: cap boost
+    const float ironAmount = apvts.getRawParameterValue(paramIron)->load() / 100.0f;
+    const bool autoGain = apvts.getRawParameterValue(paramAutoGain)->load() > 0.5f;
     const float neonDrive = apvts.getRawParameterValue(paramNeonDrive)->load();
     const float neonTone = apvts.getRawParameterValue(paramNeonTone)->load();
     const float neonMix = apvts.getRawParameterValue(paramNeonMix)->load();
@@ -419,46 +447,73 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         attackOpt = attackParam;
         releaseOpt = releaseParam;
     }
-    // Opto: threshold stays 0..100
+    // Opto: threshold stays 0..100. PWM: handled below.
 
-    emulation::MVPChain* chain = (mode == 1) ? fetChain_.get() : optoChain_.get();
-    if (chain)
+    if (mode == 2) // PWM
     {
-        chain->setNeonEnabled(neonOn);
-        chain->setNeonBeforeCompressor(true);  // fixed: saturator always before compressor
-        chain->setNeonParams(
+        ensurePwmChain();
+        float speedNorm = juce::jlimit(0.0f, 100.0f, speedParam) / 100.0f;
+        float attackMs = 80.0f * std::pow(0.0125f, speedNorm);
+        float releaseMs = 800.0f * std::pow(0.0375f, speedNorm);
+        attackMs = juce::jlimit(0.5f, 80.0f, attackMs);
+        releaseMs = juce::jlimit(30.0f, 800.0f, releaseMs);
+        float pwmRatio = juce::jlimit(1.5f, 8.0f, ratio);
+        pwmChain_->setNeonEnabled(neonOn);
+        pwmChain_->setNeonBeforeCompressor(true);
+        pwmChain_->setNeonParams(
             neonDrive * 1.0f,
             200.0f + neonTone * 4800.0f,
-            400.0f + neonTone * 11600.0f,  // wet-path tone: 400 Hz (dark) .. 12 kHz (bright)
+            400.0f + neonTone * 11600.0f,
             neonBurstiness,
             neonGMin,
             neonMix,
             neonIntensity,
             neonSatAfter);
-        std::optional<bool> optoLimitMode = (mode == 0) ? std::optional<bool>(optoCompressLimitChoice == 1) : std::nullopt;  // Limit when dropdown = "Limit"
         const juce::AudioBuffer<float>* detectorBuffer = (currentScFreq > kScFilterOffHz) ? &sidechainMonoBuffer_ : nullptr;
-        chain->process(buffer, threshold, ratioOpt, attackOpt, releaseOpt, 512, optoLimitMode, detectorBuffer);
-        gainReductionDb.store(chain->getLastGainReductionDb());
+        pwmChain_->process(buffer, thresholdRaw, pwmRatio, attackMs, releaseMs, detectorBuffer);
+        gainReductionDb.store(pwmChain_->getLastGainReductionDb());
     }
     else
     {
-        gainReductionDb.store(0.0f);
-        if (neonOn)
+        emulation::MVPChain* chain = (mode == 1) ? fetChain_.get() : optoChain_.get();
+        if (chain)
         {
-            if (!standaloneNeon_)
-                standaloneNeon_ = std::make_unique<emulation::NeonTapeSaturation>(sampleRateHz);
-            standaloneNeon_->setDepth(neonDrive * 1.0f);
-            standaloneNeon_->setModulationBandwidthHz(200.0f + neonTone * 4800.0f);
-            standaloneNeon_->setToneFilterCutoffHz(400.0f + neonTone * 11600.0f);
-            standaloneNeon_->setBurstiness(neonBurstiness);
-            standaloneNeon_->setGMin(neonGMin);
-            standaloneNeon_->setDryWet(neonMix);
-            standaloneNeon_->setSaturationIntensity(neonIntensity);
-            standaloneNeon_->setSaturationAfter(neonSatAfter);
-            standaloneNeon_->process(buffer);
+            chain->setNeonEnabled(neonOn);
+            chain->setNeonBeforeCompressor(true);  // fixed: saturator always before compressor
+            chain->setNeonParams(
+                neonDrive * 1.0f,
+                200.0f + neonTone * 4800.0f,
+                400.0f + neonTone * 11600.0f,  // wet-path tone: 400 Hz (dark) .. 12 kHz (bright)
+                neonBurstiness,
+                neonGMin,
+                neonMix,
+                neonIntensity,
+                neonSatAfter);
+            std::optional<bool> optoLimitMode = (mode == 0) ? std::optional<bool>(optoCompressLimitChoice == 1) : std::nullopt;  // Limit when dropdown = "Limit"
+            const juce::AudioBuffer<float>* detectorBuffer = (currentScFreq > kScFilterOffHz) ? &sidechainMonoBuffer_ : nullptr;
+            chain->process(buffer, threshold, ratioOpt, attackOpt, releaseOpt, 512, optoLimitMode, detectorBuffer);
+            gainReductionDb.store(chain->getLastGainReductionDb());
         }
         else
-            standaloneNeon_.reset();
+        {
+            gainReductionDb.store(0.0f);
+            if (neonOn)
+            {
+                if (!standaloneNeon_)
+                    standaloneNeon_ = std::make_unique<emulation::NeonTapeSaturation>(sampleRateHz);
+                standaloneNeon_->setDepth(neonDrive * 1.0f);
+                standaloneNeon_->setModulationBandwidthHz(200.0f + neonTone * 4800.0f);
+                standaloneNeon_->setToneFilterCutoffHz(400.0f + neonTone * 11600.0f);
+                standaloneNeon_->setBurstiness(neonBurstiness);
+                standaloneNeon_->setGMin(neonGMin);
+                standaloneNeon_->setDryWet(neonMix);
+                standaloneNeon_->setSaturationIntensity(neonIntensity);
+                standaloneNeon_->setSaturationAfter(neonSatAfter);
+                standaloneNeon_->process(buffer);
+            }
+            else
+                standaloneNeon_.reset();
+        }
     }
 
     // Output: Listen replaces with sidechain at unity; otherwise apply makeup.
@@ -482,7 +537,20 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
             const juce::ScopedLock sl(scopeSidechainLock_);
             scopeSidechainBuffer_.clear();
         }
-        float makeupGain = std::pow(10.0f, makeupDb / 20.0f);
+        if (ironAmount > 0.001f)
+        {
+            if (!iron_)
+            {
+                iron_ = std::make_unique<emulation::IronTransformer>();
+                iron_->prepare(sampleRateHz);
+            }
+            iron_->process(buffer, mode, ironAmount);
+        }
+        float makeupTotal = makeupDb;
+        if (autoGain)
+            makeupTotal += estimateMakeupDb(mode, thresholdRaw, ratio, attackParam, releaseParam, speedParam);
+        makeupTotal = juce::jlimit(-24.0f, 24.0f, makeupTotal);
+        float makeupGain = std::pow(10.0f, makeupTotal / 20.0f);
         buffer.applyGain(makeupGain);
         // Copy main output (mono) for Neon tube scope so it can follow the waveform
         const juce::ScopedLock wfSl(scopeWaveformLock_);

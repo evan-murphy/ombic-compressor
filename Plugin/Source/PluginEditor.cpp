@@ -21,14 +21,19 @@ OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
 
     addAndMakeVisible(optoPill_);
     addAndMakeVisible(fetPill_);
+    addAndMakeVisible(pwmPill_);
     optoPill_.setName("optoPill");
     fetPill_.setName("fetPill");
+    pwmPill_.setName("pwmPill");
     optoPill_.setClickingTogglesState(false);
     fetPill_.setClickingTogglesState(false);
+    pwmPill_.setClickingTogglesState(false);
     optoPill_.setButtonText("OPTO");
     fetPill_.setButtonText("FET");
+    pwmPill_.setButtonText("PWM");
     optoPill_.onClick = [this]() { compressorSection.getModeCombo().setSelectedId(1, juce::sendNotificationSync); };
     fetPill_.onClick  = [this]() { compressorSection.getModeCombo().setSelectedId(2, juce::sendNotificationSync); };
+    pwmPill_.onClick  = [this]() { compressorSection.getModeCombo().setSelectedId(3, juce::sendNotificationSync); };
 
     addAndMakeVisible(sidechainFilterSection);
     addAndMakeVisible(compressorSection);
@@ -55,8 +60,14 @@ OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
         apvts, OmbicCompressorProcessor::paramAttack, compressorSection.getAttackSlider());
     releaseAttachment = std::make_unique<SliderAttachment>(
         apvts, OmbicCompressorProcessor::paramRelease, compressorSection.getReleaseSlider());
+    speedAttachment = std::make_unique<SliderAttachment>(
+        apvts, OmbicCompressorProcessor::paramPwmSpeed, compressorSection.getSpeedSlider());
     makeupAttachment = std::make_unique<SliderAttachment>(
         apvts, OmbicCompressorProcessor::paramMakeupGainDb, outputSection.getOutputSlider());
+    ironAttachment = std::make_unique<SliderAttachment>(
+        apvts, OmbicCompressorProcessor::paramIron, outputSection.getIronSlider());
+    autoGainAttachment = std::make_unique<ButtonAttachment>(
+        apvts, OmbicCompressorProcessor::paramAutoGain, outputSection.getAutoGainButton());
 
     neonDriveAttachment = std::make_unique<SliderAttachment>(
         apvts, OmbicCompressorProcessor::paramNeonDrive, saturatorSection.getDriveSlider());
@@ -95,8 +106,9 @@ void OmbicCompressorEditor::timerCallback()
         const int minOutW = 110;
         int available = contentW_ - 3 * gridGap;
         float scFr = 0.55f;
-        int modeIndex = compressorSection.getModeCombo().getSelectedId() == 2 ? 1 : 0;
-        float compFr = modeIndex == 0 ? 0.85f : 1.5f;
+        int modeId = compressorSection.getModeCombo().getSelectedId();
+        int modeIndex = (modeId == 2) ? 1 : (modeId == 3) ? 2 : 0;
+        float compFr = (modeIndex == 0) ? 0.85f : (modeIndex == 2) ? 1.2f : 1.5f;  // Opto / PWM / FET
         float neonFr = modeIndex == 0 ? 2.2f : 1.8f;   // neon bulb gets more width for bigger knobs
         float outFr = modeIndex == 0 ? 0.7f : 0.6f;
         float total = scFr + compFr + neonFr + outFr;
@@ -129,6 +141,7 @@ void OmbicCompressorEditor::timerCallback()
     int modeId = compressorSection.getModeCombo().getSelectedId();
     optoPill_.setToggleState(modeId == 1, juce::dontSendNotification);
     fetPill_.setToggleState(modeId == 2, juce::dontSendNotification);
+    pwmPill_.setToggleState(modeId == 3, juce::dontSendNotification);
     if (compressorSection.getGainReductionMeter())
         compressorSection.getGainReductionMeter()->repaint();
 }
@@ -137,10 +150,8 @@ void OmbicCompressorEditor::updateModeVisibility()
 {
     auto* choice = processorRef.getValueTreeState().getParameter(OmbicCompressorProcessor::paramCompressorMode);
     if (!choice) return;
-    float modeVal = choice->getValue();
-    // Choice 0 = Opto (index 0), 1 = FET (index 1)
-    int modeIndex = static_cast<int>(modeVal * 1.99f);
-    compressorSection.setModeControlsVisible(modeIndex == 1);
+    int modeIndex = juce::jlimit(0, 2, static_cast<int>(choice->getValue() * 2.0f + 0.5f));
+    compressorSection.setModeControlsVisible(modeIndex);
 }
 
 namespace
@@ -248,6 +259,7 @@ void OmbicCompressorEditor::resized()
     const int pillGap = 12;
     optoPill_.setBounds(pillsRow.getX(), pillsRow.getY(), pillW, 26);
     fetPill_.setBounds(pillsRow.getX() + pillW + pillGap, pillsRow.getY(), pillW, 26);
+    pwmPill_.setBounds(pillsRow.getX() + 2 * (pillW + pillGap), pillsRow.getY(), pillW, 26);
 
     r.removeFromTop(gridGap);
     auto content = r.withTrimmedBottom(footerH).reduced(gridPadH, 0);
