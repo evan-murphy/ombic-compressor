@@ -22,7 +22,7 @@ public:
     juce::Slider& getSpeedSlider() { return speedSlider; }
     juce::Component* getGainReductionMeter() { return &grMeter; }
 
-    /** mode: 0=Opto, 1=FET, 2=PWM. Controls which controls are visible (Compress/Limit vs Ratio/Attack/Release vs Ratio/Speed). */
+    /** mode: 0=Opto, 1=FET, 2=PWM, 3=VCA. Controls which controls are visible (Compress/Limit vs Ratio/Attack/Release vs Ratio/Speed vs Threshold+Ratio only for VCA). */
     void setModeControlsVisible(int mode);
     /** Legacy: true = FET (1), false = Opto (0). */
     void setModeControlsVisible(bool fetishParamsVisible) { setModeControlsVisible(fetishParamsVisible ? 1 : 0); }

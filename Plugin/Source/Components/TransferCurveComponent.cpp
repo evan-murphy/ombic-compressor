@@ -35,12 +35,12 @@ void TransferCurveComponent::paint(juce::Graphics& g)
     if (auto* r = apvts.getRawParameterValue(OmbicCompressorProcessor::paramRatio))
         ratio = r->load();
     if (auto* r = apvts.getRawParameterValue(OmbicCompressorProcessor::paramCompressorMode))
-        mode = juce::jlimit(0, 2, static_cast<int>(r->load() * 2.0f + 0.5f));
+        mode = juce::jlimit(0, 3, static_cast<int>(r->load() * 3.0f + 0.5f));
 
-    // FET: threshold 0..100 -> dB -60..0; Opto: same 0..100 for display, but gentler curve; PWM: soft knee
+    // FET/VCA: threshold 0..100 -> dB -60..0 (VCA internal -1..3 mapped same for display); Opto: gentler; PWM: soft knee
     float threshDb = -60.0f + (thresholdRaw / 100.0f) * 60.0f;
     threshDb = juce::jlimit(dbMin, dbMax, threshDb);
-    float displayRatio = (mode == 1) ? juce::jmax(1.0f, ratio) : (mode == 2) ? juce::jlimit(1.5f, 8.0f, ratio) : 2.5f;
+    float displayRatio = (mode == 1 || mode == 3) ? juce::jmax(1.0f, ratio) : (mode == 2) ? juce::jlimit(1.5f, 8.0f, ratio) : 2.5f;
     const bool softKnee = (mode == 2);
     const float kneeDb = softKnee ? 3.0f : 0.0f;
 

@@ -11,15 +11,16 @@
 
 namespace emulation {
 
-/** Single entry point: FET or Opto mode, optional FR/THD character, optional neon before/after. Matches docs/mvp_usage.md. */
+/** Single entry point: FET, Opto, or VCA mode, optional FR/THD character, optional neon before/after. Matches docs/mvp_usage.md. */
 class MVPChain
 {
 public:
-    enum class Mode { FET, Opto };
+    enum class Mode { FET, Opto, VCA };
 
     MVPChain(Mode mode, double sampleRate,
              const juce::File& fetishDataDir,
              const juce::File& lalaDataDir,
+             const juce::File& vcaDataDir,
              bool characterFr = false,
              bool characterThd = false,
              std::optional<float> characterFrDriveDb = {},

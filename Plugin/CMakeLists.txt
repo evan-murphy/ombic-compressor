@@ -21,6 +21,7 @@ option(OMBIC_USE_V2_EDITOR "Use v2 editor (main view as tube)" ON)
 # Curve data: required and always packaged with the plugin (no dependency on external tools)
 set(OMBIC_CURVE_FETISH "${CMAKE_SOURCE_DIR}/output/fetish_v2")
 set(OMBIC_CURVE_LALA "${CMAKE_SOURCE_DIR}/output/lala_v2")
+set(OMBIC_CURVE_VCA "${CMAKE_SOURCE_DIR}/output/dbcomp_vca")
 if(NOT EXISTS "${OMBIC_CURVE_FETISH}")
     message(FATAL_ERROR "Curve data required: ${OMBIC_CURVE_FETISH} missing. This repo must contain output/fetish_v2 and output/lala_v2.")
 endif()
@@ -117,7 +118,7 @@ target_include_directories(OmbicCompressor
 
 juce_generate_juce_header(OmbicCompressor)
 
-# Bundle curve data into VST3 (required; always packaged)
+# Bundle curve data into VST3 (required; always packaged; VCA optional)
 set(OMBIC_VST3_BUNDLE "${CMAKE_CURRENT_BINARY_DIR}/OmbicCompressor_artefacts/VST3/Ombic Compressor.vst3")
 set(OMBIC_VST3_RESOURCES "${OMBIC_VST3_BUNDLE}/Contents/Resources/CurveData")
 add_custom_command(TARGET OmbicCompressor_VST3 POST_BUILD
@@ -127,6 +128,13 @@ add_custom_command(TARGET OmbicCompressor_VST3 POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory "${OMBIC_CURVE_LALA}" "${OMBIC_VST3_RESOURCES}/lala_v2"
   COMMENT "Packaging curve data into VST3 bundle"
 )
+if(EXISTS "${OMBIC_CURVE_VCA}/compression_curve.csv")
+  add_custom_command(TARGET OmbicCompressor_VST3 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${OMBIC_VST3_RESOURCES}/dbcomp_vca"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${OMBIC_CURVE_VCA}" "${OMBIC_VST3_RESOURCES}/dbcomp_vca"
+    COMMENT "Packaging VCA (dbcomp) curve data into VST3 bundle"
+  )
+endif()
 if(APPLE)
   add_custom_command(TARGET OmbicCompressor_VST3 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E remove_directory "$ENV{HOME}/Library/Audio/Plug-Ins/VST3/Ombic Compressor.vst3"

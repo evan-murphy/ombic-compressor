@@ -30,6 +30,7 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
     modeCombo.addItem("Opto", 1);
     modeCombo.addItem("FET", 2);
     modeCombo.addItem("PWM", 3);
+    modeCombo.addItem("VCA", 4);
     modeCombo.setSelectedId(1); // will be overwritten by attachment
     addAndMakeVisible(modeCombo);
     modeCombo.setVisible(false); // editor uses pills instead
@@ -168,8 +169,9 @@ void CompressorSection::setModeControlsVisible(int mode)
     const bool isOpto = (mode == 0);
     const bool isFet = (mode == 1);
     const bool isPwm = (mode == 2);
-    ratioSlider.setVisible(isFet || isPwm);
-    ratioLabel.setVisible(isFet || isPwm);
+    const bool isVca = (mode == 3);
+    ratioSlider.setVisible(isFet || isPwm || isVca);
+    ratioLabel.setVisible(isFet || isPwm || isVca);
     attackSlider.setVisible(isFet);
     attackLabel.setVisible(isFet);
     releaseSlider.setVisible(isFet);
@@ -237,8 +239,9 @@ void CompressorSection::resized()
     modeCombo.setBounds(0, 0, 1, 1);
     int x = r.getX();
     bool pwmVisible = speedSlider.isVisible();
-    bool fetVisible = ratioSlider.isVisible() && !pwmVisible;
-    bool optoVisible = !fetVisible && !pwmVisible;
+    bool vcaVisible = ratioSlider.isVisible() && !pwmVisible && !attackSlider.isVisible();
+    bool fetVisible = ratioSlider.isVisible() && !pwmVisible && attackSlider.isVisible();
+    bool optoVisible = !fetVisible && !pwmVisible && !vcaVisible;
     if (optoVisible)
     {
         const int switchW = compact ? 100 : 120;
@@ -253,8 +256,8 @@ void CompressorSection::resized()
     };
     const int knobSizeOpto = compact ? 52 : 80;   // §6 Opto (single) 80px diameter
     int knobSizeFet = compact ? 46 : 60;         // §6 FET (each) 60px diameter
-    const int numKnobs = pwmVisible ? 3 : (fetVisible ? 4 : 1);
-    if (fetVisible || pwmVisible)
+    const int numKnobs = pwmVisible ? 3 : (fetVisible ? 4 : (vcaVisible ? 2 : 1));
+    if (fetVisible || pwmVisible || vcaVisible)
     {
         int availableW = r.getWidth();
         int requiredForKnobs = numKnobs * (knobSizeFet + gap);
@@ -279,6 +282,11 @@ void CompressorSection::resized()
         placeKnob(attackSlider, attackLabel, knobSizeFet);
         placeKnob(releaseSlider, releaseLabel, knobSizeFet);
     }
+    else if (vcaVisible)
+    {
+        placeKnob(thresholdSlider, thresholdLabel, knobSizeFet);
+        placeKnob(ratioSlider, ratioLabel, knobSizeFet);
+    }
     else
     {
         int optoAreaW = r.getWidth() - (x - r.getX());
@@ -288,7 +296,7 @@ void CompressorSection::resized()
         x = threshX + knobSizeOpto + gap;
     }
 
-    int knobH = (fetVisible || pwmVisible) ? knobSizeFet : knobSizeOpto;
+    int knobH = (fetVisible || pwmVisible || vcaVisible) ? knobSizeFet : knobSizeOpto;
     if (showGrMeter_)
     {
         const int grMeterW = compact ? 20 : 24;
@@ -301,7 +309,7 @@ void CompressorSection::resized()
         thresholdSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, compact ? 44 : 56, compact ? 16 : 24);
     else
         thresholdSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, compact ? 40 : 52, compact ? 14 : 18);
-    float valueFontSize = (fetVisible || pwmVisible) ? (compact ? 12.0f : 14.0f) : (compact ? 14.0f : 20.0f);
+    float valueFontSize = (fetVisible || pwmVisible || vcaVisible) ? (compact ? 12.0f : 14.0f) : (compact ? 14.0f : 20.0f);
     for (int i = 0; i < thresholdSlider.getNumChildComponents(); ++i)
     {
         if (auto* lb = dynamic_cast<juce::Label*>(thresholdSlider.getChildComponent(i)))

@@ -7,6 +7,7 @@ namespace emulation {
 MVPChain::MVPChain(Mode mode, double sampleRate,
                    const juce::File& fetishDataDir,
                    const juce::File& lalaDataDir,
+                   const juce::File& vcaDataDir,
                    bool characterFr,
                    bool characterThd,
                    std::optional<float> characterFrDriveDb,
@@ -23,7 +24,7 @@ MVPChain::MVPChain(Mode mode, double sampleRate,
     , sampleRate_(sampleRate)
     , neonBeforeCompressor_(neonBeforeCompressor)
 {
-    juce::File dataDir = (mode == Mode::FET) ? fetishDataDir : lalaDataDir;
+    juce::File dataDir = (mode == Mode::VCA) ? vcaDataDir : ((mode == Mode::FET) ? fetishDataDir : lalaDataDir);
     AnalyzerOutput data = loadAnalyzerOutput(dataDir);
     compressor_ = std::make_unique<MeasuredCompressor>(data);
 
@@ -58,6 +59,12 @@ void MVPChain::process(juce::AudioBuffer<float>& buffer,
     if (mode_ == Mode::Opto)
     {
         ratio = std::nullopt;
+        attackParam = std::nullopt;
+        releaseParam = std::nullopt;
+    }
+    else if (mode_ == Mode::VCA)
+    {
+        // VCA curve has no timing (program-dependent in reference); pass nullopt so MeasuredCompressor uses 0,0 in cache lookup
         attackParam = std::nullopt;
         releaseParam = std::nullopt;
     }

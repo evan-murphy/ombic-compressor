@@ -91,6 +91,7 @@ private:
     juce::File dataRoot_;
     std::unique_ptr<emulation::MVPChain> fetChain_;
     std::unique_ptr<emulation::MVPChain> optoChain_;
+    std::unique_ptr<emulation::MVPChain> vcaChain_;
     std::unique_ptr<emulation::PwmChain> pwmChain_;
     std::unique_ptr<emulation::IronTransformer> iron_;
     std::unique_ptr<emulation::NeonTapeSaturation> standaloneNeon_;

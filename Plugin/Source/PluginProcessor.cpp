@@ -32,7 +32,8 @@ juce::File getBundledCurveDataRoot()
         juce::File contents = macosDir.getParentDirectory();
         juce::File bundleRoot = contents.getParentDirectory();
         juce::File curveData = bundleRoot.getChildFile("Contents/Resources/CurveData");
-        if (curveData.getChildFile("fetish_v2/compression_curve.csv").existsAsFile())
+        if (curveData.getChildFile("fetish_v2/compression_curve.csv").existsAsFile()
+            || curveData.getChildFile("dbcomp_vca/compression_curve.csv").existsAsFile())
             return curveData;
     }
 #endif
@@ -71,7 +72,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::cr
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{ paramCompressorMode, 1 },
         "Compressor Mode",
-        juce::StringArray{ "Opto", "FET", "PWM" },
+        juce::StringArray{ "Opto", "FET", "PWM", "VCA" },
         0));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
@@ -302,10 +303,9 @@ juce::AudioProcessorEditor* OmbicCompressorProcessor::createEditor()
 
 void OmbicCompressorProcessor::ensureChains()
 {
-    if (fetChain_ && optoChain_) return;
-
     juce::File fetishDir;
     juce::File lalaDir;
+    juce::File vcaDir;
 
     // 1) Bundled data (normal for shipped plugins: curve data lives inside the .vst3)
     juce::File curveDataRoot = getBundledCurveDataRoot();
@@ -313,9 +313,10 @@ void OmbicCompressorProcessor::ensureChains()
     {
         fetishDir = curveDataRoot.getChildFile("fetish_v2");
         lalaDir = curveDataRoot.getChildFile("lala_v2");
+        vcaDir = curveDataRoot.getChildFile("dbcomp_vca");
     }
 
-    // 2) Project / env path (for development: output/fetish_v2, output/lala_v2)
+    // 2) Project / env path (for development: output/fetish_v2, output/lala_v2, output/dbcomp_vca)
     if (!fetishDir.getChildFile("compression_curve.csv").existsAsFile())
     {
         juce::File root = dataRoot_;
@@ -334,21 +335,28 @@ void OmbicCompressorProcessor::ensureChains()
         }
         fetishDir = root.getChildFile("output/fetish_v2");
         lalaDir = root.getChildFile("output/lala_v2");
+        vcaDir = root.getChildFile("output/dbcomp_vca");
     }
     bool fetOk = fetishDir.getChildFile("compression_curve.csv").existsAsFile();
     bool lalaOk = lalaDir.getChildFile("compression_curve.csv").existsAsFile();
+    bool vcaOk = vcaDir.getChildFile("compression_curve.csv").existsAsFile();
     std::optional<float> noFrDrive;
     if (fetOk && !fetChain_)
         fetChain_ = std::make_unique<emulation::MVPChain>(
             emulation::MVPChain::Mode::FET, sampleRateHz,
-            fetishDir, lalaDir, false, false, noFrDrive, 1.0f,
+            fetishDir, lalaDir, vcaDir, false, false, noFrDrive, 1.0f,
             true, false, 0.02f, 1000.0f, 0.0f, 0.92f, 1.0f, false);
     if (lalaOk && !optoChain_)
         optoChain_ = std::make_unique<emulation::MVPChain>(
             emulation::MVPChain::Mode::Opto, sampleRateHz,
-            fetishDir, lalaDir, false, false, noFrDrive, 1.0f,
+            fetishDir, lalaDir, vcaDir, false, false, noFrDrive, 1.0f,
             true, false, 0.02f, 1000.0f, 0.0f, 0.92f, 1.0f, false);
-    if (fetChain_ || optoChain_)
+    if (vcaOk && !vcaChain_)
+        vcaChain_ = std::make_unique<emulation::MVPChain>(
+            emulation::MVPChain::Mode::VCA, sampleRateHz,
+            fetishDir, lalaDir, vcaDir, false, false, noFrDrive, 1.0f,
+            true, false, 0.02f, 1000.0f, 0.0f, 0.92f, 1.0f, false);
+    if (fetChain_ || optoChain_ || vcaChain_)
         curveDataLoaded_.store(true);
 }
 
@@ -418,7 +426,7 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
 
     const bool neonOn = true; /* Neon always in path; use Mix for dry/wet (0 = dry). */
     const float modeVal = apvts.getRawParameterValue(paramCompressorMode)->load();
-    const int mode = juce::jlimit(0, 2, static_cast<int>(modeVal * 2.0f + 0.5f));
+    const int mode = juce::jlimit(0, 3, static_cast<int>(modeVal + 0.5f));
     const float thresholdRaw = apvts.getRawParameterValue(paramThreshold)->load();
     const float ratio = apvts.getRawParameterValue(paramRatio)->load();
     const float attackParam = apvts.getRawParameterValue(paramAttack)->load();
@@ -446,6 +454,11 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         ratioOpt = ratio;
         attackOpt = attackParam;
         releaseOpt = releaseParam;
+    }
+    else if (mode == 3) // VCA: threshold in reference plugin units (-1..3), ratio; no attack/release (program-dependent)
+    {
+        threshold = -1.0f + (thresholdRaw / 100.0f) * 4.0f;
+        ratioOpt = ratio;
     }
     // Opto: threshold stays 0..100. PWM: handled below.
 
@@ -475,7 +488,7 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     }
     else
     {
-        emulation::MVPChain* chain = (mode == 1) ? fetChain_.get() : optoChain_.get();
+        emulation::MVPChain* chain = (mode == 3) ? vcaChain_.get() : ((mode == 1) ? fetChain_.get() : optoChain_.get());
         if (chain)
         {
             chain->setNeonEnabled(neonOn);

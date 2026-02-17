@@ -40,6 +40,7 @@ private:
     juce::TextButton optoPill_;
     juce::TextButton fetPill_;
     juce::TextButton pwmPill_;
+    juce::TextButton vcaPill_;
 
     SidechainFilterSection sidechainFilterSection;
     CompressorSection compressorSection;

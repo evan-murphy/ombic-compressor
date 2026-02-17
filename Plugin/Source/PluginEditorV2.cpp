@@ -18,18 +18,23 @@ OmbicCompressorEditorV2::OmbicCompressorEditorV2(OmbicCompressorProcessor& p)
     addAndMakeVisible(optoPill_);
     addAndMakeVisible(fetPill_);
     addAndMakeVisible(pwmPill_);
+    addAndMakeVisible(vcaPill_);
     optoPill_.setName("optoPill");
     fetPill_.setName("fetPill");
     pwmPill_.setName("pwmPill");
+    vcaPill_.setName("vcaPill");
     optoPill_.setClickingTogglesState(false);
     fetPill_.setClickingTogglesState(false);
     pwmPill_.setClickingTogglesState(false);
+    vcaPill_.setClickingTogglesState(false);
     optoPill_.setButtonText("OPTO");
     fetPill_.setButtonText("FET");
     pwmPill_.setButtonText("PWM");
+    vcaPill_.setButtonText("VCA");
     optoPill_.onClick = [this]() { compressorSection.getModeCombo().setSelectedId(1, juce::sendNotificationSync); };
     fetPill_.onClick  = [this]() { compressorSection.getModeCombo().setSelectedId(2, juce::sendNotificationSync); };
     pwmPill_.onClick  = [this]() { compressorSection.getModeCombo().setSelectedId(3, juce::sendNotificationSync); };
+    vcaPill_.onClick  = [this]() { compressorSection.getModeCombo().setSelectedId(4, juce::sendNotificationSync); };
 
     addAndMakeVisible(sidechainFilterSection);
     addAndMakeVisible(compressorSection);
@@ -105,6 +110,7 @@ void OmbicCompressorEditorV2::timerCallback()
     optoPill_.setToggleState(modeId == 1, juce::dontSendNotification);
     fetPill_.setToggleState(modeId == 2, juce::dontSendNotification);
     pwmPill_.setToggleState(modeId == 3, juce::dontSendNotification);
+    vcaPill_.setToggleState(modeId == 4, juce::dontSendNotification);
 
     bool curveLoaded = processorRef.hasCurveDataLoaded();
     if (curveLoaded != lastCurveDataState_)
@@ -118,7 +124,7 @@ void OmbicCompressorEditorV2::updateModeVisibility()
 {
     auto* choice = processorRef.getValueTreeState().getParameter(OmbicCompressorProcessor::paramCompressorMode);
     if (!choice) return;
-    int modeIndex = juce::jlimit(0, 2, static_cast<int>(choice->getValue() * 2.0f + 0.5f));
+    int modeIndex = juce::jlimit(0, 3, static_cast<int>(choice->getValue() * 3.0f + 0.5f));
     compressorSection.setModeControlsVisible(modeIndex);
 }
 
@@ -191,6 +197,7 @@ void OmbicCompressorEditorV2::resized()
     optoPill_.setBounds(pillsRow.getX(), pillsRow.getY(), pillW, 26);
     fetPill_.setBounds(pillsRow.getX() + pillW + pillGap, pillsRow.getY(), pillW, 26);
     pwmPill_.setBounds(pillsRow.getX() + 2 * (pillW + pillGap), pillsRow.getY(), pillW, 26);
+    vcaPill_.setBounds(pillsRow.getX() + 3 * (pillW + pillGap), pillsRow.getY(), pillW, 26);
 
     r.removeFromTop(gridGap);
     auto content = r.withTrimmedBottom(kFooterH).reduced(gridPadH, 0);
