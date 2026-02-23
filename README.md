@@ -26,7 +26,7 @@ The saturator is called “neon bulb” because the level **wobbles randomly in 
 4. **Use it**  
    Rescan VST3s in your DAW (or restart the DAW). Load **Ombic Compressor** on a track. Choose a **compressor mode** (Opto / FET / PWM / VCA), set threshold (and ratio/attack/release or speed depending on mode), then adjust **Neon** and **Output** as needed.
 
-**Curve data:** The repo includes `output/fetish_v2` and `output/lala_v2` (required for Opto/FET) and optionally `output/dbcomp_vca` (for VCA). The build bundles them into the VST3. If you cloned without curve data, see **docs/ARCHITECTURE.md** and run `./scripts/import-curve-data.sh /path/to/curve-data-for-compressor.tar` if you have a tarball.
+**Curve data:** The repo includes curve data for Opto and FET modes (required) and optionally for VCA. The build bundles them into the VST3. If you cloned without curve data, see **docs/ARCHITECTURE.md** and run `./scripts/import-curve-data.sh /path/to/curve-data-for-compressor.tar` if you have a tarball.
 
 ---
 
@@ -48,12 +48,12 @@ The saturator is called “neon bulb” because the level **wobbles randomly in 
 
 | Mode | Controls | Curve data | Character |
 |------|----------|------------|-----------|
-| **Opto** | Threshold (0–100%), **Compress / Limit** (detector flavour). No ratio/attack/release. | `lala_v2` (required) | Smooth, program-dependent. |
-| **FET** | Threshold (dB), **Ratio**, **Attack**, **Release**. **FET Character** (Off / Rev A / LN) for curve flavour. | `fetish_v2` (required) | Fast, 1176-style; full control. |
+| **Opto** | Threshold (0–100%), **Compress / Limit** (detector flavour). No ratio/attack/release. | Opto curve data (required) | Smooth, program-dependent. |
+| **FET** | Threshold (dB), **Ratio**, **Attack**, **Release**. **FET Character** (Off / Rev A / LN) for curve flavour. | FET curve data (required) | Fast, 1176-style; full control. |
 | **PWM** | **Threshold**, **Ratio**, **Speed** (single envelope control). No attack/release knobs. | None | Algorithmic, feedback detector; no curve data. |
 | **VCA** | **Threshold**, **Ratio** only. | `dbcomp_vca` (optional; DBX 160–style) | Measured-curve, bus-style; feedforward. |
 
-- **Opto** and **FET** require curve data in the repo (`output/lala_v2`, `output/fetish_v2`); the build always bundles them.
+- **Opto** and **FET** require curve data in the repo; the build always bundles it (see **docs/ARCHITECTURE.md** for data layout).
 - **VCA** is available when `output/dbcomp_vca` exists; the build bundles it when present. If missing, VCA mode does no compression (Neon and output gain still work).
 - **PWM** needs no curve data and works even when Opto/FET data is missing (useful for dev builds).
 
@@ -72,15 +72,15 @@ From the repo root:
 - **VST3 only:** `cmake --build build --target OmbicCompressor_VST3`
 - **Distribution zip** (VST3 + Standalone for another Mac): `./scripts/build.sh dist` → `build/OmbicCompressor-1.0.0-Darwin.zip`
 
-Curve data is bundled automatically: `output/fetish_v2` and `output/lala_v2` always; `output/dbcomp_vca` when present. Runtime: plugin loads from the VST3 bundle, or from project `output/` / `OMBIC_COMPRESSOR_DATA_PATH` when running from the project directory.
+Curve data is bundled automatically (Opto and FET always; VCA when present). Runtime: plugin loads from the VST3 bundle, or from project `output/` / `OMBIC_COMPRESSOR_DATA_PATH` when running from the project directory.
 
 ---
 
 ## GUI
 
-![Ombic Compressor](docs/screenshot.png)
+![Ombic Compressor](ombic-compressor-screenshot.png)
 
-- **Header**: OMBIC branding; “Curve data: OK” when measured data is loaded.
+- **Header**: Plugin name; “Curve data: OK” when measured data is loaded.
 - **SC Filter**: Frequency (20 Hz = off), Listen, frequency response display.
 - **Compressor**: Mode (Opto / FET / PWM / VCA), threshold, and mode-specific controls (ratio, attack, release, speed, Compress/Limit, FET Character). GR meter.
 - **Transfer curve**: In vs out (dB) with current operating point (mode-aware).
@@ -88,7 +88,7 @@ Curve data is bundled automatically: `output/fetish_v2` and `output/lala_v2` alw
 - **Output**: Makeup/trim gain, **Iron** amount, **Auto Gain** toggle.
 - **Meters**: Input, gain reduction, output. **Peak / VU** toggle; peak mode shows L/R and hold.
 
-See **docs/GUI_SPEC.md** for the full parameter list. Testing: **docs/TESTING_PROTOCOL.md**. Automated validation: **ombic-vst-inspector** → `docs/RUNBOOK_OMBIC_VALIDATION.md`.
+See **docs/GUI_SPEC.md** for the full parameter list and **docs/TESTING_PROTOCOL.md** for testing. Contributors: see `docs/RUNBOOK_OMBIC_VALIDATION.md` for automated validation.
 
 ---
 

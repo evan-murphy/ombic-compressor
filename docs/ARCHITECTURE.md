@@ -25,7 +25,7 @@ The plugin **requires** fetish_v2 and lala_v2 to run correctly. VCA mode is avai
 | System | Repo | Role |
 |--------|------|------|
 | **Ombic Compressor** | ombic-compressor | The **product**: the VST3 plugin that end users install. It **consumes** curve data at runtime (from the bundle or from an override path). The repo **contains** the curve data (`output/fetish_v2`, `output/lala_v2`; optionally `output/dbcomp_vca` for VCA mode) and the build packages it into the plugin (dbcomp_vca only when present). Standalone — no dependency on any other repo or tool. |
-| **Ombic VST Inspector** | ombic-vst-inspector | The **measurement tool**: black-box analyzer that **produces** curve data by measuring reference VST/AU plugins (e.g. FETish, LALA). You run it when you want to generate or refresh the data. It is not part of the shipped product; end users never run it. |
+| **Ombic VST Inspector** | ombic-vst-inspector | The **measurement tool**: black-box analyzer that **produces** curve data by measuring reference VST/AU plugins (reference FET- and Opto-style plugins). You run it when you want to generate or refresh the data. It is not part of the shipped product; end users never run it. |
 
 So: **Inspector** = lab that produces the data. **Compressor** = product that ships with that data and uses it. The Compressor repo is self-contained; the Inspector repo is a separate tool used to create or update the data that the Compressor repo then owns and ships.
 
