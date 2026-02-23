@@ -63,6 +63,7 @@ const char* OmbicCompressorProcessor::paramMainVuDisplay        = "main_vu_displ
 const char* OmbicCompressorProcessor::paramPwmSpeed           = "pwm_speed";
 const char* OmbicCompressorProcessor::paramIron                = "iron";
 const char* OmbicCompressorProcessor::paramAutoGain            = "auto_gain";
+const char* OmbicCompressorProcessor::paramFetCharacter        = "fet_character";
 
 //==============================================================================
 juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::createParameterLayout()
@@ -73,6 +74,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout OmbicCompressorProcessor::cr
         juce::ParameterID{ paramCompressorMode, 1 },
         "Compressor Mode",
         juce::StringArray{ "Opto", "FET", "PWM", "VCA" },
+        0));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{ paramFetCharacter, 1 },
+        "FET Character",
+        juce::StringArray{ "Off", "Rev A", "LN" },
         0));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
@@ -386,19 +393,45 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     if (numChannels == 0 || numSamples == 0)
         return;
 
-    // Input level (RMS) before processing
+    // Input level: peak (max abs) + RMS (average) + stereo L/R peak
     float sumSq = 0.0f;
+    float peak = 0.0f;
+    float peakL = 0.0f, peakR = 0.0f;
     for (int ch = 0; ch < numChannels; ++ch)
+    {
         for (int i = 0; i < numSamples; ++i)
+        {
+            float s = std::abs(buffer.getSample(ch, i));
             sumSq += buffer.getSample(ch, i) * buffer.getSample(ch, i);
+            if (s > peak) peak = s;
+            if (ch == 0 && s > peakL) peakL = s;
+            if (ch == 1 && s > peakR) peakR = s;
+        }
+    }
     float rms = std::sqrt(sumSq / (numChannels * numSamples));
-    float inDb = rms > 1e-6f ? 20.0f * std::log10(rms) : -60.0f;
-    inputLevelDb.store(juce::jlimit(-60.0f, 0.0f, inDb));
+    float inRmsDb = rms > 1e-6f ? 20.0f * std::log10(rms) : -60.0f;
+    float inPeakDb = peak > 1e-6f ? 20.0f * std::log10(peak) : -60.0f;
+    inputLevelDb.store(juce::jlimit(-60.0f, 0.0f, inRmsDb));
+    inputPeakDb.store(juce::jlimit(-60.0f, 0.0f, inPeakDb));
+    inputPeakDbL.store(numChannels >= 1 ? juce::jlimit(-60.0f, 0.0f, peakL > 1e-6f ? 20.0f * std::log10(peakL) : -60.0f) : -60.0f);
+    inputPeakDbR.store(numChannels >= 2 ? juce::jlimit(-60.0f, 0.0f, peakR > 1e-6f ? 20.0f * std::log10(peakR) : -60.0f) : -60.0f);
 
     ensureChains();
 
+    // Fail visibly: without curve data the plugin does not process. True bypass so host gets unchanged audio.
+    if (!curveDataLoaded_.load())
+    {
+        gainReductionDb.store(0.0f);
+        outputLevelDb.store(inputLevelDb.load());
+        outputPeakDb.store(inputPeakDb.load());
+        outputPeakDbL.store(inputPeakDbL.load());
+        outputPeakDbR.store(inputPeakDbR.load());
+        return;
+    }
+
     // Sidechain filter: mono sum of input, optional HPF (bypass at 20 Hz)
-    const float scFreqParam = apvts.getRawParameterValue(paramScFrequency)->load();
+    // All getRawParameterValue() return normalized 0..1; convert to actual range for processing.
+    const float scFreqParam = apvts.getParameterRange(paramScFrequency).convertFrom0to1(apvts.getRawParameterValue(paramScFrequency)->load());
     const bool scListen = apvts.getRawParameterValue(paramScListen)->load() > 0.5f;
     smoothedScFrequency_.setTargetValue(scFreqParam);
     if (sidechainMonoBuffer_.getNumSamples() < numSamples)
@@ -424,27 +457,33 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     for (int ch = 0; ch < 2; ++ch)
         sidechainStereoForListen_.copyFrom(ch, 0, sidechainMonoBuffer_, 0, 0, numSamples);
 
-    const bool neonOn = true; /* Neon always in path; use Mix for dry/wet (0 = dry). */
+    const bool neonOn = apvts.getRawParameterValue(paramNeonEnable)->load() > 0.5f;
+    // Choice param is normalized 0..1 for 4 options (Opto/FET/PWM/VCA) → index 0,1,2,3
     const float modeVal = apvts.getRawParameterValue(paramCompressorMode)->load();
-    const int mode = juce::jlimit(0, 3, static_cast<int>(modeVal + 0.5f));
-    const float thresholdRaw = apvts.getRawParameterValue(paramThreshold)->load();
-    const float ratio = apvts.getRawParameterValue(paramRatio)->load();
-    const float attackParam = apvts.getRawParameterValue(paramAttack)->load();
-    const float releaseParam = apvts.getRawParameterValue(paramRelease)->load();
-    const float speedParam = apvts.getRawParameterValue(paramPwmSpeed)->load();
-    float makeupDb = apvts.getRawParameterValue(paramMakeupGainDb)->load();
+    const int mode = juce::jlimit(0, 3, static_cast<int>(modeVal * 3.0f + 0.5f));
+    // Float params: raw is normalized 0..1; convert to actual range for processing.
+    const float thresholdRaw = apvts.getParameterRange(paramThreshold).convertFrom0to1(apvts.getRawParameterValue(paramThreshold)->load());
+    const float ratio = apvts.getParameterRange(paramRatio).convertFrom0to1(apvts.getRawParameterValue(paramRatio)->load());
+    const float attackParam = apvts.getParameterRange(paramAttack).convertFrom0to1(apvts.getRawParameterValue(paramAttack)->load());
+    const float releaseParam = apvts.getParameterRange(paramRelease).convertFrom0to1(apvts.getRawParameterValue(paramRelease)->load());
+    const float speedParam = apvts.getParameterRange(paramPwmSpeed).convertFrom0to1(apvts.getRawParameterValue(paramPwmSpeed)->load());
+    float makeupDb = apvts.getParameterRange(paramMakeupGainDb).convertFrom0to1(apvts.getRawParameterValue(paramMakeupGainDb)->load());
     makeupDb = juce::jlimit(-24.0f, 12.0f, makeupDb);  // Safe listening: cap boost
-    const float ironAmount = apvts.getRawParameterValue(paramIron)->load() / 100.0f;
+    const float ironPercent = apvts.getParameterRange(paramIron).convertFrom0to1(apvts.getRawParameterValue(paramIron)->load());
+    const float ironAmount = ironPercent / 100.0f;
     const bool autoGain = apvts.getRawParameterValue(paramAutoGain)->load() > 0.5f;
-    const float neonDrive = apvts.getRawParameterValue(paramNeonDrive)->load();
-    const float neonTone = apvts.getRawParameterValue(paramNeonTone)->load();
-    const float neonMix = apvts.getRawParameterValue(paramNeonMix)->load();
-    const float neonIntensity = apvts.getRawParameterValue(paramNeonIntensity)->load();
-    const float neonBurstiness = apvts.getRawParameterValue(paramNeonBurstiness)->load();
-    const float neonGMin = apvts.getRawParameterValue(paramNeonGMin)->load();
+    const float neonDrive = apvts.getParameterRange(paramNeonDrive).convertFrom0to1(apvts.getRawParameterValue(paramNeonDrive)->load());
+    const float neonTone = apvts.getParameterRange(paramNeonTone).convertFrom0to1(apvts.getRawParameterValue(paramNeonTone)->load());
+    const float neonMix = apvts.getParameterRange(paramNeonMix).convertFrom0to1(apvts.getRawParameterValue(paramNeonMix)->load());
+    const float neonIntensity = apvts.getParameterRange(paramNeonIntensity).convertFrom0to1(apvts.getRawParameterValue(paramNeonIntensity)->load());
+    const float neonBurstiness = apvts.getParameterRange(paramNeonBurstiness).convertFrom0to1(apvts.getRawParameterValue(paramNeonBurstiness)->load());
+    const float neonGMin = apvts.getParameterRange(paramNeonGMin).convertFrom0to1(apvts.getRawParameterValue(paramNeonGMin)->load());
     const bool neonSatAfter = apvts.getRawParameterValue(paramNeonSaturationAfter)->load() > 0.5f;
     // Opto-only: GUI "Compress / Limit" dropdown → 0 = Compress, 1 = Limit (more HF in sidechain)
     const int optoCompressLimitChoice = static_cast<int>(apvts.getRawParameterValue(paramOptoCompressLimit)->load() + 0.5f);
+    // FET character: 0 = Off, 1 = Rev A, 2 = LN (choice param normalized 0..1 for 3 options)
+    const float fetCharVal = apvts.getRawParameterValue(paramFetCharacter)->load();
+    const int fetCharacterIndex = juce::jlimit(0, 2, static_cast<int>(fetCharVal * 2.0f + 0.5f));
 
     float threshold = thresholdRaw;
     std::optional<float> ratioOpt, attackOpt, releaseOpt;
@@ -504,7 +543,8 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
                 neonSatAfter);
             std::optional<bool> optoLimitMode = (mode == 0) ? std::optional<bool>(optoCompressLimitChoice == 1) : std::nullopt;  // Limit when dropdown = "Limit"
             const juce::AudioBuffer<float>* detectorBuffer = (currentScFreq > kScFilterOffHz) ? &sidechainMonoBuffer_ : nullptr;
-            chain->process(buffer, threshold, ratioOpt, attackOpt, releaseOpt, 512, optoLimitMode, detectorBuffer);
+            std::optional<int> fetCharOpt = (mode == 1) ? std::optional<int>(fetCharacterIndex) : std::nullopt;
+            chain->process(buffer, threshold, ratioOpt, attackOpt, releaseOpt, 512, optoLimitMode, detectorBuffer, fetCharOpt);
             gainReductionDb.store(chain->getLastGainReductionDb());
         }
         else
@@ -586,12 +626,27 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
     }
 
     sumSq = 0.0f;
+    peak = 0.0f;
+    peakL = 0.0f;
+    peakR = 0.0f;
     for (int ch = 0; ch < numChannels; ++ch)
+    {
         for (int i = 0; i < numSamples; ++i)
+        {
+            float s = std::abs(buffer.getSample(ch, i));
             sumSq += buffer.getSample(ch, i) * buffer.getSample(ch, i);
+            if (s > peak) peak = s;
+            if (ch == 0 && s > peakL) peakL = s;
+            if (ch == 1 && s > peakR) peakR = s;
+        }
+    }
     rms = std::sqrt(sumSq / (numChannels * numSamples));
-    float outDb = rms > 1e-6f ? 20.0f * std::log10(rms) : -60.0f;
-    outputLevelDb.store(juce::jlimit(-60.0f, 0.0f, outDb));
+    float outRmsDb = rms > 1e-6f ? 20.0f * std::log10(rms) : -60.0f;
+    float outPeakDb = peak > 1e-6f ? 20.0f * std::log10(peak) : -60.0f;
+    outputLevelDb.store(juce::jlimit(-60.0f, 0.0f, outRmsDb));
+    outputPeakDb.store(juce::jlimit(-60.0f, 0.0f, outPeakDb));
+    outputPeakDbL.store(numChannels >= 1 ? juce::jlimit(-60.0f, 0.0f, peakL > 1e-6f ? 20.0f * std::log10(peakL) : -60.0f) : -60.0f);
+    outputPeakDbR.store(numChannels >= 2 ? juce::jlimit(-60.0f, 0.0f, peakR > 1e-6f ? 20.0f * std::log10(peakR) : -60.0f) : -60.0f);
 }
 
 //==============================================================================

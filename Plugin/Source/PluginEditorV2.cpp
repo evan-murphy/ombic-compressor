@@ -9,6 +9,7 @@ OmbicCompressorEditorV2::OmbicCompressorEditorV2(OmbicCompressorProcessor& p)
     , saturatorSection(p)
     , outputSection(p)
     , mainViewAsTube_(p)
+    , mainVu_(p)
 {
     setLookAndFeel(&ombicLf);
     setSize(kBaseWidth, kBaseHeight);
@@ -41,6 +42,24 @@ OmbicCompressorEditorV2::OmbicCompressorEditorV2(OmbicCompressorProcessor& p)
     addAndMakeVisible(saturatorSection);
     addAndMakeVisible(outputSection);
     addAndMakeVisible(mainViewAsTube_);
+    addAndMakeVisible(mainVu_);
+
+    mainVuTubeButton_.setButtonText("Tube");
+    mainVuTubeButton_.setName("mainVuTube");
+    mainVuTubeButton_.setClickingTogglesState(false);
+    mainVuTubeButton_.onClick = [this]() {
+        if (auto* p = processorRef.getValueTreeState().getParameter(OmbicCompressorProcessor::paramMainVuDisplay))
+            p->setValueNotifyingHost(p->convertTo0to1(0));
+    };
+    addAndMakeVisible(mainVuTubeButton_);
+    mainVuArcButton_.setButtonText("Arc");
+    mainVuArcButton_.setName("mainVuArc");
+    mainVuArcButton_.setClickingTogglesState(false);
+    mainVuArcButton_.onClick = [this]() {
+        if (auto* p = processorRef.getValueTreeState().getParameter(OmbicCompressorProcessor::paramMainVuDisplay))
+            p->setValueNotifyingHost(p->convertTo0to1(1));
+    };
+    addAndMakeVisible(mainVuArcButton_);
 
     saturatorSection.setScopeVisible(false);
     compressorSection.setShowGrMeter(false);  // GR only in main view + output
@@ -55,6 +74,8 @@ OmbicCompressorEditorV2::OmbicCompressorEditorV2(OmbicCompressorProcessor& p)
         apvts, OmbicCompressorProcessor::paramCompressorMode, compressorSection.getModeCombo());
     compressLimitAttachment = std::make_unique<ComboBoxAttachment>(
         apvts, OmbicCompressorProcessor::paramOptoCompressLimit, compressorSection.getCompressLimitCombo());
+    fetCharacterAttachment = std::make_unique<ComboBoxAttachment>(
+        apvts, OmbicCompressorProcessor::paramFetCharacter, compressorSection.getFetCharacterCombo());
     thresholdAttachment = std::make_unique<SliderAttachment>(
         apvts, OmbicCompressorProcessor::paramThreshold, compressorSection.getThresholdSlider());
     ratioAttachment = std::make_unique<SliderAttachment>(
@@ -80,11 +101,29 @@ OmbicCompressorEditorV2::OmbicCompressorEditorV2(OmbicCompressorProcessor& p)
         apvts, OmbicCompressorProcessor::paramNeonTone, saturatorSection.getToneSlider());
     neonMixAttachment = std::make_unique<SliderAttachment>(
         apvts, OmbicCompressorProcessor::paramNeonMix, saturatorSection.getMixSlider());
+    neonBurstinessAttachment = std::make_unique<SliderAttachment>(
+        apvts, OmbicCompressorProcessor::paramNeonBurstiness, saturatorSection.getBurstinessSlider());
+    neonGMinAttachment = std::make_unique<SliderAttachment>(
+        apvts, OmbicCompressorProcessor::paramNeonGMin, saturatorSection.getGMinSlider());
+    neonSaturationAfterAttachment = std::make_unique<ButtonAttachment>(
+        apvts, OmbicCompressorProcessor::paramNeonSaturationAfter, saturatorSection.getSoftSatAfterButton());
+    neonEnableAttachment = std::make_unique<ButtonAttachment>(
+        apvts, OmbicCompressorProcessor::paramNeonEnable, saturatorSection.getNeonEnableButton());
 
     saturatorSection.applyPercentDisplay();
 
     updateModeVisibility();
-    startTimerHz(25);
+    startTimerHz(45);
+
+    lastCurveDataState_ = processorRef.hasCurveDataLoaded();
+    const bool curveOk = processorRef.hasCurveDataLoaded();
+    compressorSection.setEnabled(curveOk);
+    saturatorSection.setEnabled(curveOk);
+    outputSection.setEnabled(curveOk);
+    optoPill_.setEnabled(curveOk);
+    fetPill_.setEnabled(curveOk);
+    pwmPill_.setEnabled(curveOk);
+    vcaPill_.setEnabled(curveOk);
 
     int logoSize = 0;
     const char* logoData = OmbicAssets::getNamedResource("Ombic_Alpha_png", logoSize);
@@ -102,29 +141,52 @@ void OmbicCompressorEditorV2::timerCallback()
     updateModeVisibility();
     compressorSection.updateGrReadout();
     compressorSection.updateCompressLimitButtonStates();
+    compressorSection.updateFetCharacterPillStates();
     outputSection.updateGrReadout();
     outputSection.repaint();
     saturatorSection.repaint();
     mainViewAsTube_.repaint();
+    mainVu_.updateFromParameter();
+    mainVu_.repaint();
     int modeId = compressorSection.getModeCombo().getSelectedId();
     optoPill_.setToggleState(modeId == 1, juce::dontSendNotification);
     fetPill_.setToggleState(modeId == 2, juce::dontSendNotification);
     pwmPill_.setToggleState(modeId == 3, juce::dontSendNotification);
     vcaPill_.setToggleState(modeId == 4, juce::dontSendNotification);
+    if (modeId != lastLayoutModeId_)
+    {
+        lastLayoutModeId_ = modeId;
+        resized();  // FET/PWM/VCA need wider compressor column; re-layout so controls fit
+    }
+
+    auto* mainVuParam = processorRef.getValueTreeState().getParameter(OmbicCompressorProcessor::paramMainVuDisplay);
+    const bool isSimple = mainVuParam && mainVuParam->getValue() > 0.5f;
+    mainViewAsTube_.setVisible(!isSimple);
+    mainVu_.setVisible(isSimple);
+    mainVuTubeButton_.setToggleState(!isSimple, juce::dontSendNotification);
+    mainVuArcButton_.setToggleState(isSimple, juce::dontSendNotification);
 
     bool curveLoaded = processorRef.hasCurveDataLoaded();
     if (curveLoaded != lastCurveDataState_)
     {
         lastCurveDataState_ = curveLoaded;
+        compressorSection.setEnabled(curveLoaded);
+        saturatorSection.setEnabled(curveLoaded);
+        outputSection.setEnabled(curveLoaded);
+        optoPill_.setEnabled(curveLoaded);
+        fetPill_.setEnabled(curveLoaded);
+        pwmPill_.setEnabled(curveLoaded);
+        vcaPill_.setEnabled(curveLoaded);
         repaint();
     }
 }
 
 void OmbicCompressorEditorV2::updateModeVisibility()
 {
-    auto* choice = processorRef.getValueTreeState().getParameter(OmbicCompressorProcessor::paramCompressorMode);
-    if (!choice) return;
-    int modeIndex = juce::jlimit(0, 3, static_cast<int>(choice->getValue() * 3.0f + 0.5f));
+    auto* raw = processorRef.getValueTreeState().getRawParameterValue(OmbicCompressorProcessor::paramCompressorMode);
+    if (!raw) return;
+    // Match processor: choice is normalized 0..1 for 4 options → index 0,1,2,3
+    int modeIndex = juce::jlimit(0, 3, static_cast<int>(raw->load() * 3.0f + 0.5f));
     compressorSection.setModeControlsVisible(modeIndex);
 }
 
@@ -182,6 +244,9 @@ void OmbicCompressorEditorV2::paint(juce::Graphics& g)
 
 void OmbicCompressorEditorV2::resized()
 {
+    // Sync compressor section visibility from parameter before layout so FET attack/release and CHARACTER get bounds
+    updateModeVisibility();
+
     auto r = getLocalBounds();
     const int gridGap = 12;
     const int gridPadH = 12;
@@ -205,16 +270,23 @@ void OmbicCompressorEditorV2::resized()
     content.removeFromBottom(shadowOff + gridPadBottom);
     content.removeFromRight(shadowOff);
 
-    // §6: Main view height 120px default; when resizable proportional, min 100px
+    // §6: Main view height 120px default; toggle row (Tube | Arc) then view area
     const int contentAreaTotal = content.getHeight();
-    const int defaultContentH = 382; // at 960×540 the content area height
-    const int maxMainViewH = juce::jmax(100, contentAreaTotal - 80);  // leave ≥80px for control row
+    const int defaultContentH = 382;
+    const int maxMainViewH = juce::jmax(100, contentAreaTotal - 80);
     const int mainViewH = juce::jlimit(100, maxMainViewH, contentAreaTotal * 120 / defaultContentH);
+    const int mainVuToggleH = 26;
+    auto mainVuToggleRow = content.removeFromTop(mainVuToggleH);
+    mainVuTubeButton_.setBounds(mainVuToggleRow.removeFromLeft(56).reduced(0, 2));
+    mainVuArcButton_.setBounds(mainVuToggleRow.removeFromLeft(56).reduced(0, 2));
     auto mainViewRect = content.removeFromTop(mainViewH);
     mainViewAsTube_.setBounds(mainViewRect);
+    mainVu_.setBounds(mainViewRect);
 
-    int modeId = compressorSection.getModeCombo().getSelectedId();
-    int modeIndex = (modeId == 2) ? 1 : (modeId == 3) ? 2 : 0;
+    // Use parameter (not combo) for mode so layout is correct on load and when host resizes
+    int modeIndex = 0;
+    if (auto* raw = processorRef.getValueTreeState().getRawParameterValue(OmbicCompressorProcessor::paramCompressorMode))
+        modeIndex = juce::jlimit(0, 3, static_cast<int>(raw->load() * 3.0f + 0.5f));
 
     // §4: Layout mechanism FlexBox or Grid from getLocalBounds()
     juce::Grid grid;
@@ -225,7 +297,8 @@ void OmbicCompressorEditorV2::resized()
     float outFr = modeIndex == 0 ? 0.7f : 0.6f;
     float total = scFr + compFr + neonFr + outFr;
     const int minScFilterW = 130;
-    const int minCompW = 340;  // FET: 4 knobs need 4*(60+16)=304; body = width-28 so need 332+ → 340
+    // FET: 4 knobs + CHARACTER pills (Bypass / Rev A / LN); keep column wide enough so all controls fit
+    const int minCompW = (modeIndex == 1) ? 520 : 340;
     const int minOutW = 110;
     int available = content.getWidth() - 3 * gridGap;
     int scFilterW = juce::jmax(minScFilterW, static_cast<int>(available * (scFr / total)));
@@ -248,4 +321,10 @@ void OmbicCompressorEditorV2::resized()
         juce::GridItem(outputSection).withArea(1, 4)
     };
     grid.performLayout(content);
+
+    // Sync main view visibility from param (so initial state is correct before first timer tick)
+    auto* mainVuParam = processorRef.getValueTreeState().getParameter(OmbicCompressorProcessor::paramMainVuDisplay);
+    bool isSimple = mainVuParam && mainVuParam->getValue() > 0.5f;
+    mainViewAsTube_.setVisible(!isSimple);
+    mainVu_.setVisible(isSimple);
 }

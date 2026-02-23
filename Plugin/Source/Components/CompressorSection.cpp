@@ -8,16 +8,29 @@ CompressorSection::GainReductionMeterComponent::GainReductionMeterComponent(Ombi
 void CompressorSection::GainReductionMeterComponent::paint(juce::Graphics& g)
 {
     float grDb = processor.gainReductionDb.load();
-    smoothedGrDb_ += 0.12f * (grDb - smoothedGrDb_); // ~300 ms ballistics
-    const float grFullScaleDb = 40.0f;  // 40 dB = full scale so meter doesn't peg with heavy compression
+    if (grDb > smoothedGrDb_)
+        smoothedGrDb_ += kGrAttackCoeff * (grDb - smoothedGrDb_);
+    else
+        smoothedGrDb_ += kGrReleaseCoeff * (grDb - smoothedGrDb_);
+    if (smoothedGrDb_ > grHoldDb_) { grHoldDb_ = smoothedGrDb_; grHoldTicks_ = kGrHoldTicks; }
+    else { if (grHoldTicks_ > 0) --grHoldTicks_; if (grHoldTicks_ <= 0) grHoldDb_ += kGrReleaseCoeff * (smoothedGrDb_ - grHoldDb_); }
+    const float grFullScaleDb = 40.0f;
     float norm = juce::jlimit(0.0f, 1.0f, smoothedGrDb_ / grFullScaleDb);
-    auto b = getLocalBounds().toFloat();
+    auto fullBounds = getLocalBounds().toFloat();
+    auto b = fullBounds;
     g.setColour(OmbicLookAndFeel::line());
     g.fillRoundedRectangle(b, 4.0f);
     g.setColour(OmbicLookAndFeel::ombicRed());
     g.fillRoundedRectangle(b.removeFromBottom(b.getHeight() * norm), 4.0f);
+    float holdNorm = juce::jlimit(0.0f, 1.0f, grHoldDb_ / grFullScaleDb);
+    if (holdNorm > 0.01f && holdNorm > norm + 0.02f)
+    {
+        g.setColour(OmbicLookAndFeel::ombicRed().withAlpha(0.6f));
+        float holdY = fullBounds.getBottom() - fullBounds.getHeight() * holdNorm;
+        g.fillRect(fullBounds.getX() + 1, holdY - 0.5f, fullBounds.getWidth() - 2, 1.0f);
+    }
     g.setColour(OmbicLookAndFeel::ink());
-    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 4.0f, 2.0f);
+    g.drawRoundedRectangle(fullBounds.reduced(0.5f), 4.0f, 2.0f);
 }
 
 //==============================================================================
@@ -48,6 +61,37 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
     compressLimitLabel.setText("COMPRESS / LIMIT", juce::dontSendNotification);
     compressLimitLabel.attachToComponent(&compressLimitCombo, true);
     addChildComponent(compressLimitLabel);
+
+    fetCharacterCombo.addItem("Off", 1);
+    fetCharacterCombo.addItem("Rev A", 2);
+    fetCharacterCombo.addItem("LN", 3);
+    fetCharacterCombo.setSelectedId(1);
+    fetCharacterCombo.setTooltip("FET only: character of gain reduction. Off = default; Rev A = more grab; LN = gentler.");
+    addChildComponent(fetCharacterCombo);
+    fetCharacterCombo.setVisible(false);
+    fetCharacterLabel.setText("CHARACTER", juce::dontSendNotification);
+    fetCharacterLabel.attachToComponent(&fetCharacterCombo, true);
+    addChildComponent(fetCharacterLabel);
+    fetCharacterLabel.setVisible(false);
+
+    fetCharacterPillOff_.setButtonText("Bypass");
+    fetCharacterPillOff_.setClickingTogglesState(false);
+    fetCharacterPillOff_.setTooltip("FET only: default character.");
+    fetCharacterPillOff_.onClick = [this]() { setFetCharacterFromPill(0); };
+    addChildComponent(fetCharacterPillOff_);
+    fetCharacterPillOff_.setVisible(false);
+    fetCharacterPillRevA_.setButtonText("Rev A");
+    fetCharacterPillRevA_.setClickingTogglesState(false);
+    fetCharacterPillRevA_.setTooltip("FET only: more grab in knee.");
+    fetCharacterPillRevA_.onClick = [this]() { setFetCharacterFromPill(1); };
+    addChildComponent(fetCharacterPillRevA_);
+    fetCharacterPillRevA_.setVisible(false);
+    fetCharacterPillLN_.setButtonText("LN");
+    fetCharacterPillLN_.setClickingTogglesState(false);
+    fetCharacterPillLN_.setTooltip("FET only: gentler character.");
+    fetCharacterPillLN_.onClick = [this]() { setFetCharacterFromPill(2); };
+    addChildComponent(fetCharacterPillLN_);
+    fetCharacterPillLN_.setVisible(false);
 
     compressLimitToggle_.setName("compressLimitSwitch");
     compressLimitToggle_.setClickingTogglesState(true);
@@ -123,6 +167,10 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
     releaseLabel.setFont(labelFont);
     addAndMakeVisible(releaseLabel);
 
+    fetCharacterLabel.setBorderSize(labelPadding);
+    fetCharacterLabel.setColour(juce::Label::textColourId, labelCol);
+    fetCharacterLabel.setFont(labelFont);
+
     speedSlider.setName("pwm_speed");
     speedSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     speedSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
@@ -139,6 +187,7 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
 
     addAndMakeVisible(grMeter);
     grReadoutLabel.setText("0.0 dB", juce::dontSendNotification);
+    grReadoutLabel.setTooltip("Gain reduction in dB (bar above). Colour: teal <3 dB, yellow 3–6 dB, red >6 dB. Fast response and hold.");
     grReadoutLabel.setJustificationType(juce::Justification::centred);
     grReadoutLabel.setFont(OmbicLookAndFeel::getOmbicFontForPainting(16.0f, true));  // §6 GR readout 16px
     addAndMakeVisible(grReadoutLabel);
@@ -152,7 +201,12 @@ CompressorSection::~CompressorSection()
 void CompressorSection::updateGrReadout()
 {
     float grDb = proc.gainReductionDb.load();
-    smoothedGrDb_ += 0.12f * (grDb - smoothedGrDb_); // ~300 ms ballistics
+    if (grDb > smoothedGrDb_)
+        smoothedGrDb_ += kGrAttackCoeff * (grDb - smoothedGrDb_);
+    else
+        smoothedGrDb_ += kGrReleaseCoeff * (grDb - smoothedGrDb_);
+    if (smoothedGrDb_ > grHoldDb_) { grHoldDb_ = smoothedGrDb_; grHoldTicks_ = kGrHoldTicks; }
+    else { if (grHoldTicks_ > 0) --grHoldTicks_; if (grHoldTicks_ <= 0) grHoldDb_ += kGrReleaseCoeff * (smoothedGrDb_ - grHoldDb_); }
     grReadoutLabel.setText(juce::String(smoothedGrDb_, 1) + " dB", juce::dontSendNotification);
     // Spec §8: GR color-coded — teal <3 dB, yellow 3–6 dB, red >6 dB
     float absGr = std::abs(smoothedGrDb_);
@@ -179,6 +233,13 @@ void CompressorSection::setModeControlsVisible(int mode)
     speedSlider.setVisible(isPwm);
     speedLabel.setVisible(isPwm);
     compressLimitToggle_.setVisible(isOpto);
+    fetCharacterLabel.setVisible(isFet);
+    fetCharacterCombo.setVisible(false);  // kept for attachment; UI uses pills in FET mode
+    fetCharacterPillOff_.setVisible(isFet);
+    fetCharacterPillRevA_.setVisible(isFet);
+    fetCharacterPillLN_.setVisible(isFet);
+    if (isFet)
+        updateFetCharacterPillStates();
 }
 
 void CompressorSection::setShowGrMeter(bool show)
@@ -193,10 +254,31 @@ void CompressorSection::updateCompressLimitButtonStates()
     compressLimitToggle_.setToggleState(compressLimitCombo.getSelectedId() == 2, juce::dontSendNotification);
 }
 
+void CompressorSection::setFetCharacterFromPill(int index)
+{
+    index = juce::jlimit(0, 2, index);
+    if (auto* p = proc.getValueTreeState().getParameter(OmbicCompressorProcessor::paramFetCharacter))
+        p->setValueNotifyingHost(static_cast<float>(index) / 2.0f);  // 3-choice: 0, 0.5, 1
+    fetCharacterCombo.setSelectedId(index + 1, juce::dontSendNotification);
+    updateFetCharacterPillStates();
+}
+
+void CompressorSection::updateFetCharacterPillStates()
+{
+    int index = 0;
+    if (auto* raw = proc.getValueTreeState().getRawParameterValue(OmbicCompressorProcessor::paramFetCharacter))
+        index = juce::jlimit(0, 2, static_cast<int>(raw->load() * 2.0f + 0.5f));
+    fetCharacterPillOff_.setToggleState(index == 0, juce::dontSendNotification);
+    fetCharacterPillRevA_.setToggleState(index == 1, juce::dontSendNotification);
+    fetCharacterPillLN_.setToggleState(index == 2, juce::dontSendNotification);
+}
+
 bool CompressorSection::isInteracting() const
 {
     return modeCombo.isMouseButtonDown() || compressLimitCombo.isMouseButtonDown()
         || compressLimitToggle_.isMouseButtonDown()
+        || fetCharacterCombo.isMouseButtonDown()
+        || fetCharacterPillOff_.isMouseButtonDown() || fetCharacterPillRevA_.isMouseButtonDown() || fetCharacterPillLN_.isMouseButtonDown()
         || thresholdSlider.isMouseButtonDown() || ratioSlider.isMouseButtonDown()
         || attackSlider.isMouseButtonDown() || releaseSlider.isMouseButtonDown()
         || speedSlider.isMouseButtonDown();
@@ -226,6 +308,13 @@ void CompressorSection::paint(juce::Graphics& g)
 
 void CompressorSection::resized()
 {
+    // Sync visibility from processor so layout always matches current mode (avoids stale Attack/Release/CHARACTER when switching to FET).
+    if (auto* raw = proc.getValueTreeState().getRawParameterValue(OmbicCompressorProcessor::paramCompressorMode))
+    {
+        const int modeIndex = juce::jlimit(0, 3, static_cast<int>(raw->load() * 3.0f + 0.5f));
+        setModeControlsVisible(modeIndex);
+    }
+
     auto r = getLocalBounds();
     const bool compact = (r.getHeight() < 110);
     const int headerH = compact ? 22 : 36;  // §6 Module card header 36px
@@ -261,13 +350,15 @@ void CompressorSection::resized()
     {
         int availableW = r.getWidth();
         int requiredForKnobs = numKnobs * (knobSizeFet + gap);
+        if (fetVisible)
+            requiredForKnobs += (3 * (compact ? 44 : 56) + 2 * (compact ? 6 : 8)) + gap;  // CHARACTER pills
         if (showGrMeter_)
         {
             const int grBlockW = gap + (compact ? 20 : 24) + 8;
             requiredForKnobs += grBlockW;
         }
         if (availableW < requiredForKnobs && knobSizeFet > 40)
-            knobSizeFet = juce::jmax(40, (availableW - (showGrMeter_ ? (gap + (compact ? 20 : 24) + 8) : 0) - numKnobs * gap) / numKnobs);
+            knobSizeFet = juce::jmax(40, (availableW - (showGrMeter_ ? (gap + (compact ? 20 : 24) + 8) : 0) - (fetVisible ? (3 * (compact ? 44 : 56) + 2 * (compact ? 6 : 8) + gap) : 0) - numKnobs * gap) / numKnobs);
     }
     if (pwmVisible)
     {
@@ -281,6 +372,15 @@ void CompressorSection::resized()
         placeKnob(ratioSlider, ratioLabel, knobSizeFet);
         placeKnob(attackSlider, attackLabel, knobSizeFet);
         placeKnob(releaseSlider, releaseLabel, knobSizeFet);
+        const int pillW = compact ? 44 : 56;
+        const int pillH = compact ? 20 : 26;
+        const int pillGap = compact ? 6 : 8;
+        fetCharacterLabel.setBounds(x, r.getY(), (3 * pillW + 2 * pillGap) + gap, labelH);
+        fetCharacterPillOff_.setBounds(x, r.getY() + labelH, pillW, pillH);
+        fetCharacterPillRevA_.setBounds(x + pillW + pillGap, r.getY() + labelH, pillW, pillH);
+        fetCharacterPillLN_.setBounds(x + 2 * (pillW + pillGap), r.getY() + labelH, pillW, pillH);
+        fetCharacterCombo.setBounds(x, r.getY() + labelH, 1, 1);  // hidden; keep for attachment
+        x += 3 * pillW + 2 * pillGap + gap;
     }
     else if (vcaVisible)
     {

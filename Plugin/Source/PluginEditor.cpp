@@ -47,6 +47,11 @@ OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
     addAndMakeVisible(meterStrip);
     addAndMakeVisible(mainVu_);
 
+    mainVuDisplayCombo_.addItem("Fancy", 1);
+    mainVuDisplayCombo_.addItem("Simple", 2);
+    mainVuDisplayCombo_.setVisible(false);
+    addAndMakeVisible(mainVuDisplayCombo_);
+
     auto& apvts = processorRef.getValueTreeState();
 
     scFrequencyAttachment = std::make_unique<SliderAttachment>(
@@ -57,6 +62,8 @@ OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
         apvts, OmbicCompressorProcessor::paramCompressorMode, compressorSection.getModeCombo());
     compressLimitAttachment = std::make_unique<ComboBoxAttachment>(
         apvts, OmbicCompressorProcessor::paramOptoCompressLimit, compressorSection.getCompressLimitCombo());
+    fetCharacterAttachment = std::make_unique<ComboBoxAttachment>(
+        apvts, OmbicCompressorProcessor::paramFetCharacter, compressorSection.getFetCharacterCombo());
     thresholdAttachment = std::make_unique<SliderAttachment>(
         apvts, OmbicCompressorProcessor::paramThreshold, compressorSection.getThresholdSlider());
     ratioAttachment = std::make_unique<SliderAttachment>(
@@ -82,12 +89,32 @@ OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
         apvts, OmbicCompressorProcessor::paramNeonTone, saturatorSection.getToneSlider());
     neonMixAttachment = std::make_unique<SliderAttachment>(
         apvts, OmbicCompressorProcessor::paramNeonMix, saturatorSection.getMixSlider());
+    neonBurstinessAttachment = std::make_unique<SliderAttachment>(
+        apvts, OmbicCompressorProcessor::paramNeonBurstiness, saturatorSection.getBurstinessSlider());
+    neonGMinAttachment = std::make_unique<SliderAttachment>(
+        apvts, OmbicCompressorProcessor::paramNeonGMin, saturatorSection.getGMinSlider());
+    neonSaturationAfterAttachment = std::make_unique<ButtonAttachment>(
+        apvts, OmbicCompressorProcessor::paramNeonSaturationAfter, saturatorSection.getSoftSatAfterButton());
+    neonEnableAttachment = std::make_unique<ButtonAttachment>(
+        apvts, OmbicCompressorProcessor::paramNeonEnable, saturatorSection.getNeonEnableButton());
+    mainVuDisplayAttachment = std::make_unique<ComboBoxAttachment>(
+        apvts, OmbicCompressorProcessor::paramMainVuDisplay, mainVuDisplayCombo_);
 
     // Ensure 0–100% display for Neon knobs (params are 0–1; show "50%" not "0.5")
     saturatorSection.applyPercentDisplay();
 
     updateModeVisibility();
-    startTimerHz(25);
+    startTimerHz(45);
+
+    lastCurveDataState_ = processorRef.hasCurveDataLoaded();
+    const bool curveOk = processorRef.hasCurveDataLoaded();
+    compressorSection.setEnabled(curveOk);
+    saturatorSection.setEnabled(curveOk);
+    outputSection.setEnabled(curveOk);
+    optoPill_.setEnabled(curveOk);
+    fetPill_.setEnabled(curveOk);
+    pwmPill_.setEnabled(curveOk);
+    vcaPill_.setEnabled(curveOk);
 
     int logoSize = 0;
     const char* logoData = OmbicAssets::getNamedResource("Ombic_Alpha_png", logoSize);
@@ -133,9 +160,18 @@ void OmbicCompressorEditor::timerCallback()
     if (curveLoaded != lastCurveDataState_)
     {
         lastCurveDataState_ = curveLoaded;
+        compressorSection.setEnabled(curveLoaded);
+        saturatorSection.setEnabled(curveLoaded);
+        outputSection.setEnabled(curveLoaded);
+        optoPill_.setEnabled(curveLoaded);
+        fetPill_.setEnabled(curveLoaded);
+        pwmPill_.setEnabled(curveLoaded);
+        vcaPill_.setEnabled(curveLoaded);
         repaint();
     }
     compressorSection.updateGrReadout();
+    compressorSection.updateCompressLimitButtonStates();
+    compressorSection.updateFetCharacterPillStates();
     compressorSection.setHighlight(compressorSection.isInteracting());
     saturatorSection.setHighlight(saturatorSection.isInteracting());
     outputSection.setHighlight(outputSection.isInteracting());
@@ -154,9 +190,10 @@ void OmbicCompressorEditor::timerCallback()
 
 void OmbicCompressorEditor::updateModeVisibility()
 {
-    auto* choice = processorRef.getValueTreeState().getParameter(OmbicCompressorProcessor::paramCompressorMode);
-    if (!choice) return;
-    int modeIndex = juce::jlimit(0, 3, static_cast<int>(choice->getValue() * 3.0f + 0.5f));
+    auto* raw = processorRef.getValueTreeState().getRawParameterValue(OmbicCompressorProcessor::paramCompressorMode);
+    if (!raw) return;
+    // Match processor: choice is normalized 0..1 for 4 options → index 0,1,2,3
+    int modeIndex = juce::jlimit(0, 3, static_cast<int>(raw->load() * 3.0f + 0.5f));
     compressorSection.setModeControlsVisible(modeIndex);
 }
 
@@ -247,10 +284,13 @@ void OmbicCompressorEditor::applyColumnLayout(int scFilterW, int compW, int neon
     outputSection.setBounds(x, contentY_, outW, contentH_);
     meterStrip.setBounds(0, 0, 0, 0);
     mainVu_.setBounds(mainVuX_, mainVuY_, mainVuW_, mainVuH);
+    mainVuDisplayCombo_.setBounds(0, 0, 1, 1);  // hidden; attachment only
 }
 
 void OmbicCompressorEditor::resized()
 {
+    updateModeVisibility();
+
     auto r = getLocalBounds();
     const int gridGap = 12;
     const int gridPadH = 12;
@@ -288,15 +328,18 @@ void OmbicCompressorEditor::resized()
     contentW_ = content.getWidth();
 
     const float scFr = 0.55f;
-    int modeIndex = compressorSection.getModeCombo().getSelectedId() == 2 ? 1 : 0;
+    int modeIndex = 0;
+    if (auto* raw = processorRef.getValueTreeState().getRawParameterValue(OmbicCompressorProcessor::paramCompressorMode))
+        modeIndex = juce::jlimit(0, 3, static_cast<int>(raw->load() * 3.0f + 0.5f));
     float compFr = modeIndex == 0 ? 0.85f : 1.5f;
     float neonFr = modeIndex == 0 ? 2.2f : 1.8f;   // neon bulb gets more width for bigger knobs
     float outFr = modeIndex == 0 ? 0.7f : 0.6f;
     float total = scFr + compFr + neonFr + outFr;
     const int minScFilterW = 130;
     const int minOutW = 110;
+    const int minCompW = (modeIndex == 1) ? 520 : 340;  // FET: 4 knobs + CHARACTER pills; keep wide so all controls fit
     int scFilterW = juce::jmax(minScFilterW, static_cast<int>(available * (scFr / total)));
-    int compW = juce::jmax(340, static_cast<int>(available * (compFr / total)));
+    int compW = juce::jmax(minCompW, static_cast<int>(available * (compFr / total)));
     int neonW = static_cast<int>(available * (neonFr / total));
     int outW = available - scFilterW - compW - neonW;
     if (outW < minOutW) { outW = minOutW; neonW = available - scFilterW - compW - outW; }

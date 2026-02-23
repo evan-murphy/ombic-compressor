@@ -15,6 +15,7 @@ public:
 
     juce::ComboBox& getModeCombo() { return modeCombo; }
     juce::ComboBox& getCompressLimitCombo() { return compressLimitCombo; }
+    juce::ComboBox& getFetCharacterCombo() { return fetCharacterCombo; }
     juce::Slider& getThresholdSlider() { return thresholdSlider; }
     juce::Slider& getRatioSlider() { return ratioSlider; }
     juce::Slider& getAttackSlider() { return attackSlider; }
@@ -33,11 +34,14 @@ public:
     void updateGrReadout();
     /** Call from editor timer to sync Compress/Limit toggle state from param. */
     void updateCompressLimitButtonStates();
+    /** Call from editor timer to sync FET character pill states from param (when in FET mode). */
+    void updateFetCharacterPillStates();
     /** True if user is dragging any control in this section. */
     bool isInteracting() const;
     void setHighlight(bool on);
 
 private:
+    void setFetCharacterFromPill(int index);
     bool highlighted_ = false;
     bool showGrMeter_ = true;
     OmbicCompressorProcessor& proc;
@@ -45,6 +49,11 @@ private:
 
     juce::ComboBox modeCombo;
     juce::ComboBox compressLimitCombo;
+    juce::ComboBox fetCharacterCombo;
+    juce::Label fetCharacterLabel;
+    juce::TextButton fetCharacterPillOff_;
+    juce::TextButton fetCharacterPillRevA_;
+    juce::TextButton fetCharacterPillLN_;
     juce::ToggleButton compressLimitToggle_;
     juce::Slider thresholdSlider;
     juce::Slider ratioSlider;
@@ -59,7 +68,12 @@ private:
     juce::Label releaseLabel;
     juce::Label speedLabel;
     juce::Label grReadoutLabel;
-    float smoothedGrDb_ = 0.0f; // VU-style ballistics for readout
+    float smoothedGrDb_ = 0.0f;
+    float grHoldDb_ = 0.0f;
+    int grHoldTicks_ = 0;
+    static constexpr float kGrAttackCoeff = 0.77f;
+    static constexpr float kGrReleaseCoeff = 0.071f;
+    static constexpr int kGrHoldTicks = 68;
 
     class GainReductionMeterComponent : public juce::Component
     {
@@ -68,7 +82,12 @@ private:
         void paint(juce::Graphics& g) override;
     private:
         OmbicCompressorProcessor& processor;
-        float smoothedGrDb_ = 0.0f; // VU-style ballistics
+        float smoothedGrDb_ = 0.0f;
+        float grHoldDb_ = 0.0f;
+        int grHoldTicks_ = 0;
+        static constexpr float kGrAttackCoeff = 0.77f;
+        static constexpr float kGrReleaseCoeff = 0.071f;
+        static constexpr int kGrHoldTicks = 68;
     } grMeter;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CompressorSection)
