@@ -24,19 +24,22 @@ MainViewAsTubeComponent::MainViewAsTubeComponent(OmbicCompressorProcessor& proce
     outReadout_.setJustificationType(juce::Justification::centred);
     outReadout_.setFont(OmbicLookAndFeel::getOmbicFontForPainting(9.5f, true));
     addAndMakeVisible(outReadout_);
-    startTimerHz(25);
+    startTimerHz(45);
 }
 
 void MainViewAsTubeComponent::timerCallback()
 {
-    float inDb = proc_.inputLevelDb.load();
+    float inPeak = proc_.inputPeakDb.load();
+    float outPeak = proc_.outputPeakDb.load();
     float grDb = proc_.gainReductionDb.load();
-    float outDb = proc_.outputLevelDb.load();
-    smoothedInDb_  += ballisticsCoeff_ * (inDb  - smoothedInDb_);
-    smoothedGrDb_   += ballisticsCoeff_ * (grDb  - smoothedGrDb_);
-    smoothedOutDb_  += ballisticsCoeff_ * (outDb - smoothedOutDb_);
+    if (inPeak > peakInDb_) peakInDb_ += kPeakAttackCoeff * (inPeak - peakInDb_);
+    else peakInDb_ += kPeakReleaseCoeff * (inPeak - peakInDb_);
+    if (outPeak > peakOutDb_) peakOutDb_ += kPeakAttackCoeff * (outPeak - peakOutDb_);
+    else peakOutDb_ += kPeakReleaseCoeff * (outPeak - peakOutDb_);
+    if (grDb > smoothedGrDb_) smoothedGrDb_ += kGrAttackCoeff * (grDb - smoothedGrDb_);
+    else smoothedGrDb_ += kGrReleaseCoeff * (grDb - smoothedGrDb_);
 
-    inReadout_.setText((smoothedInDb_ <= -60.0f ? juce::String("-60") : juce::String(static_cast<int>(smoothedInDb_))) + " dB", juce::dontSendNotification);
+    inReadout_.setText((peakInDb_ <= -60.0f ? juce::String("-60") : juce::String(static_cast<int>(peakInDb_))) + " dB", juce::dontSendNotification);
     inReadout_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicBlue());
     grReadout_.setText(juce::String(smoothedGrDb_, 1) + " dB", juce::dontSendNotification);
     float absGr = std::abs(smoothedGrDb_);
@@ -46,7 +49,7 @@ void MainViewAsTubeComponent::timerCallback()
         grReadout_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicYellow());
     else
         grReadout_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicRed());
-    outReadout_.setText((smoothedOutDb_ <= -60.0f ? juce::String("-60") : juce::String(static_cast<int>(smoothedOutDb_))) + " dB", juce::dontSendNotification);
+    outReadout_.setText((peakOutDb_ <= -60.0f ? juce::String("-60") : juce::String(static_cast<int>(peakOutDb_))) + " dB", juce::dontSendNotification);
     outReadout_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicTeal());
 
     filamentPhase_ += 0.06f;

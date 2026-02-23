@@ -48,6 +48,7 @@ private:
     OutputSection outputSection;
     MeterStrip meterStrip;
     MainVuComponent mainVu_;
+    juce::ComboBox mainVuDisplayCombo_;  // hidden; for paramMainVuDisplay attachment (host automation)
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
@@ -57,6 +58,7 @@ private:
     std::unique_ptr<ButtonAttachment> scListenAttachment;
     std::unique_ptr<ComboBoxAttachment> modeAttachment;
     std::unique_ptr<ComboBoxAttachment> compressLimitAttachment;
+    std::unique_ptr<ComboBoxAttachment> fetCharacterAttachment;
     std::unique_ptr<SliderAttachment> thresholdAttachment;
     std::unique_ptr<SliderAttachment> ratioAttachment;
     std::unique_ptr<SliderAttachment> attackAttachment;
@@ -69,6 +71,11 @@ private:
     std::unique_ptr<SliderAttachment> neonIntensityAttachment;
     std::unique_ptr<SliderAttachment> neonToneAttachment;
     std::unique_ptr<SliderAttachment> neonMixAttachment;
+    std::unique_ptr<SliderAttachment> neonBurstinessAttachment;
+    std::unique_ptr<SliderAttachment> neonGMinAttachment;
+    std::unique_ptr<ButtonAttachment> neonSaturationAfterAttachment;
+    std::unique_ptr<ButtonAttachment> neonEnableAttachment;
+    std::unique_ptr<ComboBoxAttachment> mainVuDisplayAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OmbicCompressorEditor)
 };

@@ -21,9 +21,12 @@ public:
     juce::Slider& getIntensitySlider() { return intensitySlider; }
     juce::Slider& getToneSlider() { return toneSlider; }
     juce::Slider& getMixSlider() { return mixSlider; }
+    juce::Slider& getBurstinessSlider() { return burstinessSlider; }
+    juce::Slider& getGMinSlider() { return gMinSlider; }
+    juce::ToggleButton& getSoftSatAfterButton() { return softSatAfterButton; }
+    juce::ToggleButton& getNeonEnableButton() { return neonEnableButton; }
 
-    /** Re-apply 0–100% display for all four sliders. Call after SliderAttachments are created so
-     *  the UI always shows human-readable percentages (e.g. "50%") instead of 0–1.0. */
+    /** Re-apply 0–100% display for Drive/Intensity/Tone/Mix and G Min. Call after SliderAttachments are created. */
     void applyPercentDisplay();
 
     /** When false (v2 layout), scope is hidden and section shows knobs only. Default true. */
@@ -58,11 +61,17 @@ private:
     juce::Slider intensitySlider;
     juce::Slider toneSlider;
     juce::Slider mixSlider;
+    juce::Slider burstinessSlider;
+    juce::Slider gMinSlider;
+    juce::ToggleButton softSatAfterButton;
+    juce::ToggleButton neonEnableButton;
     ScopeComponent scopeComponent_;  // when SC Listen on, shows sidechain (teal); else synthetic waveform
     juce::Label driveLabel;
     juce::Label intensityLabel;
     juce::Label toneLabel;
     juce::Label mixLabel;
+    juce::Label burstinessLabel;
+    juce::Label gMinLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SaturatorSection)
 };

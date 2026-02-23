@@ -28,12 +28,14 @@ public:
     void setSidechainOptoOptions(bool rolloff, bool limit, double sampleRate);
 
     /** Process buffer. When attack_param/release_param are set and timing data exists, uses one-pole envelope. When both nullopt (Opto), uses fixed program-dependent envelope.
-     *  If externalDetectorBuffer is non-null, level is taken from that buffer (e.g. SC-filtered mono); gain is still applied to buffer. When set, internal Opto LPF/shelf are not applied. */
+     *  If externalDetectorBuffer is non-null, level is taken from that buffer (e.g. SC-filtered mono); gain is still applied to buffer. When set, internal Opto LPF/shelf are not applied.
+     *  fetCharacter: only used when ratio/attack/release are set (FET mode). 0 = Off (no scale), 1 = Rev A (more GR in knee), 2 = LN (less GR). */
     void process(juce::AudioBuffer<float>& buffer, double sampleRate,
                  float threshold, std::optional<float> ratio,
                  std::optional<float> attackParam, std::optional<float> releaseParam,
                  int blockSize = 512,
-                 const juce::AudioBuffer<float>* externalDetectorBuffer = nullptr);
+                 const juce::AudioBuffer<float>* externalDetectorBuffer = nullptr,
+                 std::optional<int> fetCharacter = std::nullopt);
 
     /** Last gain reduction (dB) applied in process() — for metering. */
     float getLastGainReductionDb() const { return lastGrDb_; }

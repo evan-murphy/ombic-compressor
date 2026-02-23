@@ -166,7 +166,8 @@ void MeasuredCompressor::process(juce::AudioBuffer<float>& buffer, double sample
                                  float threshold, std::optional<float> ratio,
                                  std::optional<float> attackParam, std::optional<float> releaseParam,
                                  int blockSize,
-                                 const juce::AudioBuffer<float>* externalDetectorBuffer)
+                                 const juce::AudioBuffer<float>* externalDetectorBuffer,
+                                 std::optional<int> fetCharacter)
 {
     const int numChannels = buffer.getNumChannels();
     const int numSamples = buffer.getNumSamples();
@@ -245,6 +246,19 @@ void MeasuredCompressor::process(juce::AudioBuffer<float>& buffer, double sample
         float rms = std::sqrt(sumSq / static_cast<float>(levelChannels * juce::jmax(1, levelLen)));
         float inputDb = rms <= 1e-10f ? -100.0f : 20.0f * std::log10(rms);
         float targetGrDb = gainReductionDb(threshold, inputDb, ratio, {}, {});
+        if (fetCharacter.has_value())
+        {
+            const int c = *fetCharacter;
+            if (c == 1) // Rev A: more GR in knee (input a few dB above threshold)
+            {
+                float overDb = inputDb - threshold;
+                if (overDb > 0.0f && overDb < 12.0f)
+                    targetGrDb *= 1.15f;
+            }
+            else if (c == 2) // LN: gentler
+                targetGrDb *= 0.5f;
+            // c == 0: Off, no scale
+        }
 
         float grDb;
         if (useEnvelope)

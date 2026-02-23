@@ -250,6 +250,53 @@ SaturatorSection::SaturatorSection(OmbicCompressorProcessor& processor)
     mixLabel.setColour(juce::Label::textColourId, labelCol);
     mixLabel.setFont(labelFont);
     addAndMakeVisible(mixLabel);
+
+    // MVP: Burstiness 0–10 (integer display)
+    burstinessSlider.setName("neon_burstiness");
+    burstinessSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    burstinessSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    burstinessSlider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xFFe85590));
+    burstinessSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 44, 16);
+    burstinessSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
+    burstinessSlider.setVelocityBasedMode(false);
+    addAndMakeVisible(burstinessSlider);
+    burstinessLabel.setText("BURST", juce::dontSendNotification);
+    burstinessLabel.setBorderSize(labelPadding);
+    burstinessLabel.setColour(juce::Label::textColourId, labelCol);
+    burstinessLabel.setFont(labelFont);
+    addAndMakeVisible(burstinessLabel);
+
+    // MVP: G Min 0.85–1.0 (show as 85–100%)
+    gMinSlider.setName("neon_g_min");
+    gMinSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    gMinSlider.setRotaryParameters(juce::Slider::RotaryParameters{ -2.356f, 2.356f, true });
+    gMinSlider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xFFe85590));
+    gMinSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 44, 16);
+    gMinSlider.setColour(juce::Slider::textBoxTextColourId, textCol);
+    gMinSlider.setVelocityBasedMode(false);
+    auto gMinFromValue = [](double v) { return juce::String(static_cast<int>(v * 100.0 + 0.5)) + "%"; };
+    auto gMinValueFrom = [](const juce::String& t) { return t.trim().trimCharactersAtEnd("%").getFloatValue() / 100.0; };
+    gMinSlider.textFromValueFunction = [gMinFromValue](double v) { return gMinFromValue(v); };
+    gMinSlider.valueFromTextFunction = [gMinValueFrom](const juce::String& t) { return gMinValueFrom(t); };
+    gMinSlider.setNumDecimalPlacesToDisplay(0);
+    addAndMakeVisible(gMinSlider);
+    gMinLabel.setText("G MIN", juce::dontSendNotification);
+    gMinLabel.setBorderSize(labelPadding);
+    gMinLabel.setColour(juce::Label::textColourId, labelCol);
+    gMinLabel.setFont(labelFont);
+    addAndMakeVisible(gMinLabel);
+
+    // MVP: Soft Sat After toggle
+    softSatAfterButton.setName("neon_saturation_after");
+    softSatAfterButton.setButtonText("Soft Sat After");
+    softSatAfterButton.setColour(juce::ToggleButton::tickColourId, juce::Colour(0xFFe85590));
+    addAndMakeVisible(softSatAfterButton);
+
+    // MVP: Neon On toggle (bypass when off)
+    neonEnableButton.setName("neon_enable");
+    neonEnableButton.setButtonText("On");
+    neonEnableButton.setColour(juce::ToggleButton::tickColourId, juce::Colour(0xFFe85590));
+    addAndMakeVisible(neonEnableButton);
 }
 
 void SaturatorSection::applyPercentDisplay()
@@ -264,6 +311,11 @@ void SaturatorSection::applyPercentDisplay()
         sl->valueFromTextFunction = [valueFromPercent](const juce::String& t) { return valueFromPercent(t); };
         sl->setNumDecimalPlacesToDisplay(0);
     }
+    auto gMinFromValue = [](double v) { return juce::String(static_cast<int>(v * 100.0 + 0.5)) + "%"; };
+    auto gMinValueFrom = [](const juce::String& t) { return t.trim().trimCharactersAtEnd("%").getFloatValue() / 100.0; };
+    gMinSlider.textFromValueFunction = [gMinFromValue](double v) { return gMinFromValue(v); };
+    gMinSlider.valueFromTextFunction = [gMinValueFrom](const juce::String& t) { return gMinValueFrom(t); };
+    gMinSlider.setNumDecimalPlacesToDisplay(0);
 }
 
 SaturatorSection::~SaturatorSection()
@@ -274,7 +326,8 @@ SaturatorSection::~SaturatorSection()
 bool SaturatorSection::isInteracting() const
 {
     return driveSlider.isMouseButtonDown() || intensitySlider.isMouseButtonDown()
-        || toneSlider.isMouseButtonDown() || mixSlider.isMouseButtonDown();
+        || toneSlider.isMouseButtonDown() || mixSlider.isMouseButtonDown()
+        || burstinessSlider.isMouseButtonDown() || gMinSlider.isMouseButtonDown();
 }
 
 void SaturatorSection::setHighlight(bool on)
@@ -351,4 +404,21 @@ void SaturatorSection::resized()
     place(intensitySlider, intensityLabel);
     place(toneSlider, toneLabel);
     place(mixSlider, mixLabel);
+
+    // MVP: second row — Burstiness, G Min, then toggles (smaller knobs when space is tight)
+    const int row2Y = r.getY() + labelH + knobSize + (compact ? 6 : 12);
+    const int knob2Size = compact ? 28 : (scopeVisible_ ? 48 : 40);
+    const int column2W = knob2Size + (compact ? 4 : 8);
+    int x2 = r.getX();
+    burstinessLabel.setBounds(x2, row2Y, column2W, labelH);
+    burstinessSlider.setBounds(x2, row2Y + labelH, knob2Size, knob2Size);
+    x2 += column2W;
+    gMinLabel.setBounds(x2, row2Y, column2W, labelH);
+    gMinSlider.setBounds(x2, row2Y + labelH, knob2Size, knob2Size);
+    x2 += column2W;
+    const int toggleH = compact ? 18 : 22;
+    const int toggleW = scopeVisible_ ? 100 : 72;
+    softSatAfterButton.setBounds(x2, row2Y, toggleW, toggleH);
+    x2 += toggleW + (compact ? 4 : 8);
+    neonEnableButton.setBounds(x2, row2Y, 36, toggleH);
 }

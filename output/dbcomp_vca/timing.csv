@@ -1,0 +1,2 @@
+attack_param,release_param,threshold,ratio,attack_time_ms,release_time_ms,measurement_ok
+0.0,0.0,,,0.0,0.0,False

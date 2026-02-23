@@ -15,6 +15,14 @@ void TransferCurveComponent::paint(juce::Graphics& g)
     g.setColour(OmbicLookAndFeel::pluginBorder());
     g.drawRoundedRectangle(b.reduced(0.5f), 10.0f, 1.0f);
 
+    if (!proc.hasCurveDataLoaded())
+    {
+        g.setColour(OmbicLookAndFeel::pluginMuted());
+        g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(11.0f, true));
+        g.drawText("Compression curve data not found", b.toNearestInt(), juce::Justification::centred);
+        return;
+    }
+
     auto plotArea = b.reduced(20.0f, 10.0f);
     const float dbMin = -50.0f;
     const float dbMax = 0.0f;

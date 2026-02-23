@@ -36,10 +36,14 @@ private:
     juce::Label grReadout_;
     juce::Label outReadout_;
 
-    float smoothedInDb_  = -60.0f;
+    float peakInDb_ = -60.0f;
+    float peakOutDb_ = -60.0f;
     float smoothedGrDb_ = 0.0f;
-    float smoothedOutDb_ = -60.0f;
-    static constexpr float ballisticsCoeff_ = 0.12f;
+    static constexpr int kMeterHz = 45;
+    static constexpr float kPeakAttackCoeff = 0.99f;
+    static constexpr float kPeakReleaseCoeff = 0.054f;
+    static constexpr float kGrAttackCoeff = 0.77f;
+    static constexpr float kGrReleaseCoeff = 0.071f;
 
     bool isFancy() const;
 

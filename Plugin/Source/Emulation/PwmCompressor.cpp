@@ -5,7 +5,7 @@ namespace emulation {
 
 namespace {
 constexpr float kPwmInternalHpfHz = 150.0f;
-constexpr float kSoftKneeDb = 3.0f;
+constexpr float kSoftKneeDb = 2.0f;  // Slightly tighter than 3 dB so PWM GR is more audible
 } // namespace
 
 void PwmCompressor::prepare(double sampleRate)

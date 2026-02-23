@@ -1,14 +1,14 @@
 # VCA vs PWM mode — how they work differently
 
-**Summary:** PWM is an **algorithmic** mode (no curve data); VCA would be a **measured-curve** mode (like FET/Opto), using analyzer output from a reference plugin (e.g. dBComp/DBX 160).
+**Summary:** PWM is an **algorithmic** mode (no curve data); VCA is a **measured-curve** mode (like FET/Opto), using curve data from `output/dbcomp_vca` (DBX 160–style capture). Same data layout as fetish_v2/lala_v2; optional at build time.
 
 ---
 
 ## 1. Data and topology
 
-| Aspect | PWM (current) | VCA (proposed) |
+| Aspect | PWM (current) | VCA (current) |
 |--------|----------------|-----------------|
-| **Curve data** | None. No CSV, no bundle dependency. | Same as FET/Opto: `compression_curve.csv` (+ optional FR/THD) from analyzer run on reference (e.g. dBComp). |
+| **Curve data** | None. No CSV, no bundle dependency. | Same as FET/Opto: `output/dbcomp_vca/` with `compression_curve.csv`, `timing.csv`, `frequency_response.csv`, `thd_vs_level.json` (from DBX 160 capture). Optional: packaged only if present. |
 | **Gain reduction** | Formula: threshold, ratio, soft knee (±3 dB), feedback detector. | Interpolation from measured (threshold, ratio, input_db) → gain_reduction_db (MeasuredCompressor). |
 | **Detector** | **Feedback** — detector reads *output* of gain stage. Optional internal 150 Hz HPF when no external sidechain. | **Feedforward** — detector from main buffer or external sidechain (same as FET). No special internal HPF. |
 | **Attack/Release** | **Speed** (0–100) → single control mapped to attack/release + program-dependent release in code. No A/R knobs. | Hardware reference (dBComp) has **program-dependent** timing; no A/R in curve. UI can reuse FET knobs (Threshold, Ratio) and hide or default Attack/Release. |

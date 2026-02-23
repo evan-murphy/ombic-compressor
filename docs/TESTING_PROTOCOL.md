@@ -20,11 +20,12 @@ Use this checklist to verify the plugin in REAPER after a build. Curve data is a
 
 ---
 
-## 3. Mode switching (Opto vs FET)
+## 3. Mode switching (Opto, FET, VCA)
 
 1. Set **Mode** to **Opto**. Change **Threshold** (0–100). You should hear more/less compression; GR meter should reflect it.
 2. Set **Mode** to **FET**. Adjust **Threshold** (in dB), **Ratio**, **Attack**, **Release**. Adjust **Output** (makeup/trim). Confirm GR and level change as expected.
-3. Switch back and forth between Opto and FET and confirm no crashes and that settings hold where applicable.
+3. If **VCA** mode is available, set **Mode** to **VCA**. Confirm compression and GR meter work (curve data from `output/dbcomp_vca`).
+4. Switch back and forth between Opto, FET, and VCA and confirm no crashes and that settings hold where applicable.
 
 ---
 
@@ -48,7 +49,7 @@ Use this checklist to verify the plugin in REAPER after a build. Curve data is a
 
 ## 6. Data path (if something seems wrong)
 
-- Curve data is always bundled at build time. If the compressor doesn’t seem to reduce gain, check the header (“No curve data” = load failed) and that you’re using a build that included the repo’s `output/fetish_v2` and `output/lala_v2`. You can override at runtime with `OMBIC_COMPRESSOR_DATA_PATH` pointing at a directory containing `fetish_v2/` and `lala_v2/`.
+- Curve data is always bundled at build time. If the compressor doesn’t seem to reduce gain, check the header (“No curve data” = load failed) and that you’re using a build that included the repo’s `output/fetish_v2` and `output/lala_v2` (and optionally `output/dbcomp_vca` for VCA mode). You can override at runtime with `OMBIC_COMPRESSOR_DATA_PATH` pointing at a directory containing `fetish_v2/`, `lala_v2/`, and if using VCA, `dbcomp_vca/`.
 - Rebuild and re-copy the VST3 to `~/Library/Audio/Plug-Ins/VST3/` if you changed code or data paths.
 
 ---

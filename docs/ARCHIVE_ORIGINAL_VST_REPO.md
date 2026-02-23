@@ -15,7 +15,7 @@ This document preserves context from the original **VST** monorepo (single repo 
   - **ombic-compressor** (this repo): Plugin only — JUCE build, GUI, emulation, curve data bundle.
   - **ombic-vst-inspector**: Analyzer only — Python `vst_analyzer`, plugin_configs, ripper, export script.
 
-- **Curve data** is required and lives in this repo (`output/fetish_v2`, `output/lala_v2`); the build always packages it. The compressor has no dependency on Inspector. Optionally, curve data can be regenerated elsewhere and imported (see **docs/WORKFLOW_TWO_REPOS.md**).
+- **Curve data** is required (`output/fetish_v2`, `output/lala_v2`) and optional (`output/dbcomp_vca` for VCA mode); the build packages what exists. The compressor has no dependency on Inspector. Optionally, curve data can be regenerated elsewhere and imported (see **docs/WORKFLOW_TWO_REPOS.md**).
 
 ---
 

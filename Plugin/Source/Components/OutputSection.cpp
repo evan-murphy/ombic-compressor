@@ -11,9 +11,14 @@ OutputSection::LevelMeterComponent::LevelMeterComponent(OmbicCompressorProcessor
 
 void OutputSection::LevelMeterComponent::paint(juce::Graphics& g)
 {
-    float db = isInput_ ? proc_->inputLevelDb.load() : proc_->outputLevelDb.load();
-    smoothedDb_ += 0.15f * (db - smoothedDb_);
-    float norm = levelToNorm(smoothedDb_);
+    float rawDb = isInput_ ? proc_->inputPeakDb.load() : proc_->outputPeakDb.load();
+    if (rawDb > peakDb_)
+        peakDb_ += kPeakAttackCoeff * (rawDb - peakDb_);
+    else
+        peakDb_ += kPeakReleaseCoeff * (rawDb - peakDb_);
+    if (peakDb_ >= peakHoldDb_) { peakHoldDb_ = peakDb_; peakHoldTicks_ = kPeakHoldTicks; }
+    else { if (peakHoldTicks_ > 0) --peakHoldTicks_; if (peakHoldTicks_ <= 0) peakHoldDb_ += kPeakReleaseCoeff * (peakDb_ - peakHoldDb_); }
+    float norm = levelToNorm(peakDb_);
     auto b = getLocalBounds().toFloat();
     g.setColour(OmbicLookAndFeel::pluginBg());
     g.fillRoundedRectangle(b, 3.0f);
@@ -24,6 +29,13 @@ void OutputSection::LevelMeterComponent::paint(juce::Graphics& g)
         g.setColour(isInput_ ? OmbicLookAndFeel::ombicBlue() : OmbicLookAndFeel::ombicTeal());
         float h = b.getHeight() * norm;
         g.fillRoundedRectangle(b.getX() + 1, b.getBottom() - h, b.getWidth() - 2, h, 2.0f);
+    }
+    float holdNorm = levelToNorm(peakHoldDb_);
+    if (holdNorm > 0.002f && holdNorm > norm + 0.02f)
+    {
+        g.setColour((isInput_ ? OmbicLookAndFeel::ombicBlue() : OmbicLookAndFeel::ombicTeal()).withAlpha(0.6f));
+        float holdY = b.getBottom() - b.getHeight() * holdNorm;
+        g.fillRect(b.getX() + 1, holdY - 0.5f, b.getWidth() - 2, 1.0f);
     }
 }
 
@@ -40,6 +52,8 @@ OutputSection::OutputSection(OmbicCompressorProcessor& processor)
     const juce::Font labelFont = OmbicLookAndFeel::getOmbicFontForPainting(9.0f, true);
     addAndMakeVisible(inMeter_);
     addAndMakeVisible(outMeter_);
+    inLabel_.setTooltip("Input peak level. Thin line = 2 s peak hold.");
+    outLabel_.setTooltip("Output peak level. Thin line = 2 s peak hold.");
     inLabel_.setText("IN", juce::dontSendNotification);
     outLabel_.setText("OUT", juce::dontSendNotification);
     inLabel_.setFont(OmbicLookAndFeel::getOmbicFontForPainting(8.0f, true));
@@ -61,6 +75,10 @@ OutputSection::OutputSection(OmbicCompressorProcessor& processor)
     ironLabel.setColour(juce::Label::textColourId, labelCol);
     ironLabel.setFont(labelFont);
     addAndMakeVisible(ironLabel);
+    ironSubLabel_.setText("Output saturation", juce::dontSendNotification);
+    ironSubLabel_.setColour(juce::Label::textColourId, labelCol.withAlpha(0.7f));
+    ironSubLabel_.setFont(OmbicLookAndFeel::getOmbicFontForPainting(8.0f, false));
+    addAndMakeVisible(ironSubLabel_);
     autoGainButton.setName("autoGain");
     autoGainButton.setButtonText("Auto Gain");
     autoGainButton.setClickingTogglesState(true);
@@ -87,6 +105,7 @@ OutputSection::OutputSection(OmbicCompressorProcessor& processor)
     grReadoutLabel_.setJustificationType(juce::Justification::centred);
     grReadoutLabel_.setFont(OmbicLookAndFeel::getOmbicFontForPainting(16.0f, true));
     grReadoutLabel_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicTeal());
+    grReadoutLabel_.setTooltip("Gain reduction: how much the compressor is reducing. Fast response.");
     addAndMakeVisible(grReadoutLabel_);
 }
 
@@ -108,7 +127,12 @@ void OutputSection::setHighlight(bool on)
 void OutputSection::updateGrReadout()
 {
     float grDb = proc.gainReductionDb.load();
-    smoothedGrDb_ += 0.12f * (grDb - smoothedGrDb_);
+    if (grDb > smoothedGrDb_)
+        smoothedGrDb_ += kGrAttackCoeff * (grDb - smoothedGrDb_);
+    else
+        smoothedGrDb_ += kGrReleaseCoeff * (grDb - smoothedGrDb_);
+    if (smoothedGrDb_ > grHoldDb_) { grHoldDb_ = smoothedGrDb_; grHoldTicks_ = kGrHoldTicks; }
+    else { if (grHoldTicks_ > 0) --grHoldTicks_; if (grHoldTicks_ <= 0) grHoldDb_ += kGrReleaseCoeff * (smoothedGrDb_ - grHoldDb_); }
     grReadoutLabel_.setText(juce::String(smoothedGrDb_, 1) + " dB", juce::dontSendNotification);
     float absGr = std::abs(smoothedGrDb_);
     if (absGr < 3.0f)
@@ -133,6 +157,12 @@ void OutputSection::paint(juce::Graphics& g)
     g.setColour(juce::Colours::white);
     g.setFont(OmbicLookAndFeel::getOmbicFontForPainting(13.0f, true));  // §7 Module headers 13px
     g.drawText("OUTPUT", static_cast<int>(headerRect.getX()) + 12, static_cast<int>((headerH - 13.0f) * 0.5f), 200, 14, juce::Justification::left);
+    // Divider line above Iron area (drawn in resized region; ironAreaY_ set in resized)
+    if (ironAreaY_ > 0)
+    {
+        g.setColour(OmbicLookAndFeel::pluginBorder().withAlpha(0.6f));
+        g.drawHorizontalLine(ironAreaY_, b.getX() + 8.0f, b.getRight() - 8.0f);
+    }
 }
 
 void OutputSection::resized()
@@ -142,32 +172,40 @@ void OutputSection::resized()
     const int headerH = compact ? 22 : 36;  // §6 Module card header 36px
     r.removeFromTop(headerH);
     r.reduce(compact ? 8 : 14, compact ? 8 : 14);  // §6 body padding 14px
-    // Spec §8: meter 6px wide, 80px tall
     const int meterW = 6;
     const int meterH = compact ? 40 : 80;
-    const int ironKnobSize = compact ? 40 : 48;  // §4.5 Iron 48px
-    const int outputKnobSize = compact ? 44 : 56;   // §6 Output knob 56px diameter
+    const int ironKnobSize = compact ? 40 : 48;
+    const int outputKnobSize = compact ? 44 : 56;
     const int gap = compact ? 6 : 10;
     const int labelH = compact ? 10 : 18;
     const int meterLabelH = compact ? 8 : 12;
-    const int minRowW = meterW + gap + ironKnobSize + gap + outputKnobSize + gap + meterW;
-    int rowW = juce::jmin(r.getWidth(), minRowW);
-    int startX = r.getX() + (r.getWidth() - rowW) / 2;
+
+    // Main output area: IN | Output | OUT (no Iron here)
+    const int mainRowW = meterW + gap + outputKnobSize + gap + meterW;
+    int startX = r.getX() + (r.getWidth() - mainRowW) / 2;
     int x = startX;
     inMeter_.setBounds(x, r.getY() + labelH, meterW, meterH);
     inLabel_.setBounds(x - 2, r.getY() + labelH + meterH + 2, meterW + 4, meterLabelH);
     x += meterW + gap;
-    ironLabel.setBounds(x, r.getY(), ironKnobSize + gap, labelH);
-    ironSlider.setBounds(x, r.getY() + labelH, ironKnobSize, ironKnobSize);
-    x += ironKnobSize + gap;
     outputLabel.setBounds(x, r.getY(), outputKnobSize, labelH);
     outputSlider.setBounds(x, r.getY() + labelH, outputKnobSize, outputKnobSize);
     x += outputKnobSize + gap;
     outMeter_.setBounds(x, r.getY() + labelH, meterW, meterH);
     outLabel_.setBounds(x - 2, r.getY() + labelH + meterH + 2, meterW + 4, meterLabelH);
+
     const int grValueH = compact ? 14 : 22;
     const int toggleH = compact ? 18 : 22;
+    const int mainBlockBottom = r.getY() + labelH + meterH + 4 + toggleH + meterLabelH + grValueH;
     autoGainButton.setBounds(r.getX(), r.getY() + labelH + meterH + 4, 80, toggleH);
     grLabel_.setBounds(r.getX(), r.getY() + labelH + meterH + 4 + toggleH, r.getWidth(), meterLabelH);
     grReadoutLabel_.setBounds(r.getX(), r.getY() + labelH + meterH + 4 + toggleH + meterLabelH, r.getWidth(), grValueH);
+
+    // Iron as its own area below main output
+    const int ironGap = compact ? 6 : 10;
+    ironAreaY_ = mainBlockBottom + ironGap;
+    auto ironRow = r.withTop(ironAreaY_).withHeight(labelH + ironKnobSize + 4 + meterLabelH);
+    int ix = ironRow.getX() + (ironRow.getWidth() - (ironKnobSize + 20)) / 2;
+    ironLabel.setBounds(ix, ironRow.getY(), ironKnobSize + 20, labelH);
+    ironSubLabel_.setBounds(ix, ironRow.getY() + labelH + ironKnobSize + 2, ironKnobSize + 20, meterLabelH);
+    ironSlider.setBounds(ix, ironRow.getY() + labelH, ironKnobSize, ironKnobSize);
 }

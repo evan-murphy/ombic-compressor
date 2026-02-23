@@ -24,12 +24,12 @@ So: curve data gives the **shape and character** the plugin is allowed to have; 
 
 ## 2. What the curve data actually is
 
-| File | FET (fetish_v2) | Opto (lala_v2) | What it measures |
-|------|------------------|----------------|-------------------|
-| **compression_curve.csv** | 225 rows | 225 rows | For each of a few (threshold, ratio) settings: input level (dB) → output level / gain reduction. |
-| **timing.csv** | 25 rows (5×5 attack_param × release_param) | (none) | Maps knob positions → attack_time_ms, release_time_ms for the envelope. |
-| **frequency_response.csv** | 90 rows (30 freqs × 3 drive levels) | Same | Magnitude (and optionally phase) vs frequency and level. |
-| **thd_vs_level.json** | 7 levels | Same | THD% and harmonics vs level. |
+| File | FET (fetish_v2) | Opto (lala_v2) | VCA (dbcomp_vca) | What it measures |
+|------|------------------|----------------|-------------------|-------------------|
+| **compression_curve.csv** | 225 rows | 225 rows | 12 rows (one representative curve) | For each of a few (threshold, ratio) settings: input level (dB) → output level / gain reduction. VCA: single curve from DBX 160 capture (T0.50_C0.50_G0.50). |
+| **timing.csv** | 25 rows (5×5 attack_param × release_param) | (none) | 1 placeholder row | Maps knob positions → attack_time_ms, release_time_ms for the envelope. VCA chain does not use timing (nullopt). |
+| **frequency_response.csv** | 90 rows (30 freqs × 3 drive levels) | Same | 1 flat row | Magnitude (and optionally phase) vs frequency and level. |
+| **thd_vs_level.json** | 7 levels | Same | 1 entry | THD% and harmonics vs level. |
 
 **FET compression curve in practice:**
 

@@ -143,8 +143,19 @@ void NeonTapeSaturation::process(juce::AudioBuffer<float>& buffer)
         for (int ch = 0; ch < numChannels; ++ch)
         {
             float x = buffer.getSample(ch, i);
-            float yMod = gMod * x;
-            yMod = std::tanh(satInputGain * yMod);
+            float yMod;
+            if (saturationAfter_)
+            {
+                // Soft sat after multiply: modulate then saturate (current default)
+                yMod = gMod * x;
+                yMod = std::tanh(satInputGain * yMod);
+            }
+            else
+            {
+                // Soft sat before multiply: saturate input then modulate
+                float xSat = std::tanh(satInputGain * x);
+                yMod = gMod * xSat;
+            }
             // Wet-path tone filter: low cutoff = dark, high = bright (makes Tone slider clearly audible)
             const int chIdx = ch < 2 ? ch : 1;
             toneFilterState_[chIdx] = toneFilterAlpha_ * toneFilterState_[chIdx] + (1.0f - toneFilterAlpha_) * yMod;

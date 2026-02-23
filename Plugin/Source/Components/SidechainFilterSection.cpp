@@ -121,7 +121,14 @@ SidechainFilterSection::SidechainFilterSection(OmbicCompressorProcessor& process
     listenButton_.setClickingTogglesState(true);
     addAndMakeVisible(listenButton_);
 
-    startTimerHz(25);
+    listenWarningLabel_.setText("Output replaced by sidechain", juce::dontSendNotification);
+    listenWarningLabel_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicTeal().withAlpha(0.9f));
+    listenWarningLabel_.setFont(OmbicLookAndFeel::getOmbicFontForPainting(8.0f, true));
+    listenWarningLabel_.setJustificationType(juce::Justification::centredLeft);
+    listenWarningLabel_.setVisible(false);
+    addAndMakeVisible(listenWarningLabel_);
+
+    startTimerHz(45);
 }
 
 SidechainFilterSection::~SidechainFilterSection()
@@ -178,6 +185,8 @@ void SidechainFilterSection::resized()
     int listenX = x + knobSize + 8;
     int listenY = r.getY() + labelH + (knobSize - listenH) / 2;
     listenButton_.setBounds(listenX, listenY, listenW, listenH);
+    const int warnH = compact ? 10 : 12;
+    listenWarningLabel_.setBounds(listenX + listenW + 4, listenY, r.getRight() - (listenX + listenW + 4), juce::jmin(listenH, warnH));
 }
 
 void SidechainFilterSection::timerCallback()
@@ -190,6 +199,12 @@ void SidechainFilterSection::timerCallback()
             frequencyValueLabel_.setText("OFF", juce::dontSendNotification);
         else
             frequencyValueLabel_.setText(juce::String(juce::roundToInt(hz)) + " Hz", juce::dontSendNotification);
+    }
+    bool listenOn = proc_.isScListenActive();
+    if (listenWarningLabel_.isVisible() != listenOn)
+    {
+        listenWarningLabel_.setVisible(listenOn);
+        resized();
     }
     freqResponseDisplay_.repaint();
 }

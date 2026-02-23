@@ -38,6 +38,7 @@ private:
     juce::Label frequencyLabel_;
     juce::Label frequencyValueLabel_;
     juce::ToggleButton listenButton_;
+    juce::Label listenWarningLabel_;  // "Output replaced by sidechain" when Listen on
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SidechainFilterSection)
 };

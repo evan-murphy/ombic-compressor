@@ -40,9 +40,17 @@ public:
     const juce::AudioProcessorValueTreeState& getValueTreeState() const { return apvts; }
 
     // Meter values (written on audio thread, read on message thread)
-    std::atomic<float> inputLevelDb{ -60.0f };
+    // Level: keep RMS as "average" for transfer curve / backward compat
+    std::atomic<float> inputLevelDb{ -60.0f };   // input RMS (average)
+    std::atomic<float> outputLevelDb{ -60.0f }; // output RMS (average)
+    // Peak and stereo for industry-style monitoring (Dorrough-like)
+    std::atomic<float> inputPeakDb{ -60.0f };
+    std::atomic<float> outputPeakDb{ -60.0f };
+    std::atomic<float> inputPeakDbL{ -60.0f };
+    std::atomic<float> inputPeakDbR{ -60.0f };
+    std::atomic<float> outputPeakDbL{ -60.0f };
+    std::atomic<float> outputPeakDbR{ -60.0f };
     std::atomic<float> gainReductionDb{ 0.0f };
-    std::atomic<float> outputLevelDb{ -60.0f };
 
     /** True after ensureChains() has successfully loaded at least one curve set (FET or Opto). */
     bool hasCurveDataLoaded() const { return curveDataLoaded_.load(); }
@@ -68,6 +76,7 @@ public:
     static const char* paramPwmSpeed;
     static const char* paramIron;
     static const char* paramAutoGain;
+    static const char* paramFetCharacter;
 
     /** True when SC Listen is active (for header indicator). */
     bool isScListenActive() const;

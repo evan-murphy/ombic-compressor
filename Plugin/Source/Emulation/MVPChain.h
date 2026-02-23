@@ -35,7 +35,8 @@ public:
              bool neonSaturationAfter = false);
 
     /** Process buffer. FET: threshold (dB), ratio, attack_param, release_param. Opto: threshold (0–100). optoLimitMode: when Opto, true = Limit (more HF in sidechain).
-     *  externalDetectorBuffer: optional SC-filtered mono buffer for level detection; when set, compressor uses it instead of main buffer for detector. */
+     *  externalDetectorBuffer: optional SC-filtered mono buffer for level detection; when set, compressor uses it instead of main buffer for detector.
+     *  fetCharacter: only used when mode is FET. 0 = Off, 1 = Rev A, 2 = LN. */
     void process(juce::AudioBuffer<float>& buffer,
                  float threshold,
                  std::optional<float> ratio,
@@ -43,7 +44,8 @@ public:
                  std::optional<float> releaseParam,
                  int blockSize = 512,
                  std::optional<bool> optoLimitMode = std::nullopt,
-                 const juce::AudioBuffer<float>* externalDetectorBuffer = nullptr);
+                 const juce::AudioBuffer<float>* externalDetectorBuffer = nullptr,
+                 std::optional<int> fetCharacter = std::nullopt);
 
     void setNeonParams(float depth, float modulationBandwidthHz, float toneFilterCutoffHz, float burstiness, float gMin, float dryWet, float intensity, bool saturationAfter);
     void setNeonEnabled(bool enabled) { neonEnabled_ = enabled; }

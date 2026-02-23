@@ -46,8 +46,11 @@ MainVuComponent::MainVuComponent(OmbicCompressorProcessor& processor)
     outReadout_.setJustificationType(juce::Justification::centred);
     outReadout_.setFont(OmbicLookAndFeel::getOmbicFontForPainting(9.5f, true));
     addAndMakeVisible(outReadout_);
+    inReadout_.setTooltip("Input peak level (fast response).");
+    grReadout_.setTooltip("Gain reduction: how much the compressor is reducing level. Updates quickly with the signal.");
+    outReadout_.setTooltip("Output peak level (fast response).");
 
-    startTimerHz(25);
+    startTimerHz(kMeterHz);
     updateFromParameter();
 }
 
@@ -71,14 +74,18 @@ void MainVuComponent::updateFromParameter()
 
 void MainVuComponent::timerCallback()
 {
-    float inDb = proc_.inputLevelDb.load();
+    float inPeak = proc_.inputPeakDb.load();
+    float outPeak = proc_.outputPeakDb.load();
     float grDb = proc_.gainReductionDb.load();
-    float outDb = proc_.outputLevelDb.load();
-    smoothedInDb_  += ballisticsCoeff_ * (inDb  - smoothedInDb_);
-    smoothedGrDb_   += ballisticsCoeff_ * (grDb  - smoothedGrDb_);
-    smoothedOutDb_  += ballisticsCoeff_ * (outDb - smoothedOutDb_);
 
-    inReadout_.setText((smoothedInDb_ <= -60.0f ? juce::String("-60") : juce::String(static_cast<int>(smoothedInDb_))) + " dB", juce::dontSendNotification);
+    if (inPeak > peakInDb_) peakInDb_ += kPeakAttackCoeff * (inPeak - peakInDb_);
+    else peakInDb_ += kPeakReleaseCoeff * (inPeak - peakInDb_);
+    if (outPeak > peakOutDb_) peakOutDb_ += kPeakAttackCoeff * (outPeak - peakOutDb_);
+    else peakOutDb_ += kPeakReleaseCoeff * (outPeak - peakOutDb_);
+    if (grDb > smoothedGrDb_) smoothedGrDb_ += kGrAttackCoeff * (grDb - smoothedGrDb_);
+    else smoothedGrDb_ += kGrReleaseCoeff * (grDb - smoothedGrDb_);
+
+    inReadout_.setText((peakInDb_ <= -60.0f ? juce::String("-60") : juce::String(static_cast<int>(peakInDb_))) + " dB", juce::dontSendNotification);
     inReadout_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicBlue());
     grReadout_.setText(juce::String(smoothedGrDb_, 1) + " dB", juce::dontSendNotification);
     float absGr = std::abs(smoothedGrDb_);
@@ -88,7 +95,7 @@ void MainVuComponent::timerCallback()
         grReadout_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicYellow());
     else
         grReadout_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicRed());
-    outReadout_.setText((smoothedOutDb_ <= -60.0f ? juce::String("-60") : juce::String(static_cast<int>(smoothedOutDb_))) + " dB", juce::dontSendNotification);
+    outReadout_.setText((peakOutDb_ <= -60.0f ? juce::String("-60") : juce::String(static_cast<int>(peakOutDb_))) + " dB", juce::dontSendNotification);
     outReadout_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicTeal());
 
     updateFromParameter();
@@ -163,8 +170,8 @@ void MainVuComponent::paint(juce::Graphics& g)
             g.strokePath(arcTrack, juce::PathStrokeType(arcW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
             auto dbToNorm = [](float db) { return juce::jlimit(0.0f, 1.0f, (db + 60.0f) / 60.0f); };
-            float inNorm = dbToNorm(smoothedInDb_);
-            float outNorm = dbToNorm(smoothedOutDb_);
+            float inNorm = dbToNorm(peakInDb_);
+            float outNorm = dbToNorm(peakOutDb_);
 
             juce::Path inArc;
             inArc.addArc(arcX - radius, cy - radius, radius * 2.0f, radius * 2.0f, startAngle, startAngle + sweep * inNorm, true);
