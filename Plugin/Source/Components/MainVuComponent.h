@@ -39,7 +39,7 @@ private:
     float peakInDb_ = -60.0f;
     float peakOutDb_ = -60.0f;
     float smoothedGrDb_ = 0.0f;
-    static constexpr int kMeterHz = 45;
+    static constexpr int kMeterHz = 60;
     static constexpr float kPeakAttackCoeff = 0.99f;
     static constexpr float kPeakReleaseCoeff = 0.054f;
     static constexpr float kGrAttackCoeff = 0.77f;

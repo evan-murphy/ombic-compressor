@@ -24,7 +24,7 @@ MainViewAsTubeComponent::MainViewAsTubeComponent(OmbicCompressorProcessor& proce
     outReadout_.setJustificationType(juce::Justification::centred);
     outReadout_.setFont(OmbicLookAndFeel::getOmbicFontForPainting(9.5f, true));
     addAndMakeVisible(outReadout_);
-    startTimerHz(45);
+    startTimerHz(60);
 }
 
 void MainViewAsTubeComponent::timerCallback()

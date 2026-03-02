@@ -191,6 +191,12 @@ CompressorSection::CompressorSection(OmbicCompressorProcessor& processor)
     grReadoutLabel.setJustificationType(juce::Justification::centred);
     grReadoutLabel.setFont(OmbicLookAndFeel::getOmbicFontForPainting(16.0f, true));  // §6 GR readout 16px
     addAndMakeVisible(grReadoutLabel);
+    grPeakLabel.setText("Peak: 0.0 dB", juce::dontSendNotification);
+    grPeakLabel.setTooltip("Peak gain reduction (hold/decay). Shows recent maximum.");
+    grPeakLabel.setJustificationType(juce::Justification::centred);
+    grPeakLabel.setFont(OmbicLookAndFeel::getOmbicFontForPainting(9.0f, false));
+    grPeakLabel.setColour(juce::Label::textColourId, OmbicLookAndFeel::pluginMuted());
+    addAndMakeVisible(grPeakLabel);
 }
 
 CompressorSection::~CompressorSection()
@@ -208,6 +214,7 @@ void CompressorSection::updateGrReadout()
     if (smoothedGrDb_ > grHoldDb_) { grHoldDb_ = smoothedGrDb_; grHoldTicks_ = kGrHoldTicks; }
     else { if (grHoldTicks_ > 0) --grHoldTicks_; if (grHoldTicks_ <= 0) grHoldDb_ += kGrReleaseCoeff * (smoothedGrDb_ - grHoldDb_); }
     grReadoutLabel.setText(juce::String(smoothedGrDb_, 1) + " dB", juce::dontSendNotification);
+    grPeakLabel.setText("Peak: " + juce::String(grHoldDb_, 1) + " dB", juce::dontSendNotification);
     // Spec §8: GR color-coded — teal <3 dB, yellow 3–6 dB, red >6 dB
     float absGr = std::abs(smoothedGrDb_);
     if (absGr < 3.0f)
@@ -247,6 +254,7 @@ void CompressorSection::setShowGrMeter(bool show)
     showGrMeter_ = show;
     grMeter.setVisible(show);
     grReadoutLabel.setVisible(show);
+    grPeakLabel.setVisible(show);
 }
 
 void CompressorSection::updateCompressLimitButtonStates()
@@ -401,8 +409,10 @@ void CompressorSection::resized()
     {
         const int grMeterW = compact ? 20 : 24;
         const int grReadoutH = compact ? 14 : 18;
-        grMeter.setBounds(x + gap, r.getY() + labelH, grMeterW, juce::jmax(20, knobH - grReadoutH));
-        grReadoutLabel.setBounds(x + gap, r.getY() + labelH + juce::jmax(20, knobH - grReadoutH), grMeterW + 8, grReadoutH);
+        const int grPeakH = 12;
+        grMeter.setBounds(x + gap, r.getY() + labelH, grMeterW, juce::jmax(20, knobH - grReadoutH - grPeakH));
+        grReadoutLabel.setBounds(x + gap, r.getY() + labelH + juce::jmax(20, knobH - grReadoutH - grPeakH), grMeterW + 8, grReadoutH);
+        grPeakLabel.setBounds(x + gap, r.getY() + labelH + juce::jmax(20, knobH - grReadoutH - grPeakH) + grReadoutH, grMeterW + 8, grPeakH);
     }
 
     if (optoVisible)

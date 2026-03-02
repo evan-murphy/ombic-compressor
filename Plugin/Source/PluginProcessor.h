@@ -114,6 +114,7 @@ private:
     juce::dsp::IIR::Filter<float> sidechainHpf_;
     juce::dsp::IIR::Coefficients<float>::Ptr sidechainHpfCoeffs_;
     juce::SmoothedValue<float> smoothedScFrequency_;
+    juce::SmoothedValue<float> smoothedMakeupGrDb_;
     juce::AudioBuffer<float> sidechainMonoBuffer_;
     juce::AudioBuffer<float> sidechainStereoForListen_;
     void updateSidechainFilterCoeffs(float frequencyHz);

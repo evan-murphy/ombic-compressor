@@ -107,6 +107,12 @@ OutputSection::OutputSection(OmbicCompressorProcessor& processor)
     grReadoutLabel_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicTeal());
     grReadoutLabel_.setTooltip("Gain reduction: how much the compressor is reducing. Fast response.");
     addAndMakeVisible(grReadoutLabel_);
+    grPeakLabel_.setText("Peak: 0.0 dB", juce::dontSendNotification);
+    grPeakLabel_.setJustificationType(juce::Justification::centred);
+    grPeakLabel_.setFont(OmbicLookAndFeel::getOmbicFontForPainting(9.0f, false));
+    grPeakLabel_.setColour(juce::Label::textColourId, OmbicLookAndFeel::pluginMuted());
+    grPeakLabel_.setTooltip("Peak gain reduction (hold/decay).");
+    addAndMakeVisible(grPeakLabel_);
 }
 
 OutputSection::~OutputSection()
@@ -134,6 +140,7 @@ void OutputSection::updateGrReadout()
     if (smoothedGrDb_ > grHoldDb_) { grHoldDb_ = smoothedGrDb_; grHoldTicks_ = kGrHoldTicks; }
     else { if (grHoldTicks_ > 0) --grHoldTicks_; if (grHoldTicks_ <= 0) grHoldDb_ += kGrReleaseCoeff * (smoothedGrDb_ - grHoldDb_); }
     grReadoutLabel_.setText(juce::String(smoothedGrDb_, 1) + " dB", juce::dontSendNotification);
+    grPeakLabel_.setText("Peak: " + juce::String(grHoldDb_, 1) + " dB", juce::dontSendNotification);
     float absGr = std::abs(smoothedGrDb_);
     if (absGr < 3.0f)
         grReadoutLabel_.setColour(juce::Label::textColourId, OmbicLookAndFeel::ombicTeal());
@@ -194,11 +201,13 @@ void OutputSection::resized()
     outLabel_.setBounds(x - 2, r.getY() + labelH + meterH + 2, meterW + 4, meterLabelH);
 
     const int grValueH = compact ? 14 : 22;
+    const int grPeakH = 12;
     const int toggleH = compact ? 18 : 22;
-    const int mainBlockBottom = r.getY() + labelH + meterH + 4 + toggleH + meterLabelH + grValueH;
+    const int mainBlockBottom = r.getY() + labelH + meterH + 4 + toggleH + meterLabelH + grValueH + grPeakH;
     autoGainButton.setBounds(r.getX(), r.getY() + labelH + meterH + 4, 80, toggleH);
     grLabel_.setBounds(r.getX(), r.getY() + labelH + meterH + 4 + toggleH, r.getWidth(), meterLabelH);
     grReadoutLabel_.setBounds(r.getX(), r.getY() + labelH + meterH + 4 + toggleH + meterLabelH, r.getWidth(), grValueH);
+    grPeakLabel_.setBounds(r.getX(), r.getY() + labelH + meterH + 4 + toggleH + meterLabelH + grValueH, r.getWidth(), grPeakH);
 
     // Iron as its own area below main output
     const int ironGap = compact ? 6 : 10;

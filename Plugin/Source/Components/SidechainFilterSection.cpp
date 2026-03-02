@@ -128,7 +128,9 @@ SidechainFilterSection::SidechainFilterSection(OmbicCompressorProcessor& process
     listenWarningLabel_.setVisible(false);
     addAndMakeVisible(listenWarningLabel_);
 
-    startTimerHz(45);
+    frequencySlider_.setTooltip("Sidechain high-pass frequency (Hz). 20 Hz = filter off.");
+    listenButton_.setTooltip("Replace main output with sidechain so you hear what the compressor detector hears.");
+    startTimerHz(60);
 }
 
 SidechainFilterSection::~SidechainFilterSection()

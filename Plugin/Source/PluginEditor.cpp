@@ -104,7 +104,7 @@ OmbicCompressorEditor::OmbicCompressorEditor(OmbicCompressorProcessor& p)
     saturatorSection.applyPercentDisplay();
 
     updateModeVisibility();
-    startTimerHz(45);
+    startTimerHz(60);
 
     lastCurveDataState_ = processorRef.hasCurveDataLoaded();
     const bool curveOk = processorRef.hasCurveDataLoaded();

@@ -260,6 +260,8 @@ void OmbicCompressorProcessor::prepareToPlay(double sampleRate, int samplesPerBl
     inputRms.reset(sampleRate, 0.05);
     outputRms.reset(sampleRate, 0.05);
     smoothedScFrequency_.reset(sampleRate, 0.015);  // 15 ms ramp
+    smoothedMakeupGrDb_.reset(sampleRate, 0.03);    // 30 ms for Auto Gain makeup smoothing
+    smoothedMakeupGrDb_.setCurrentAndTargetValue(0.0f);
     smoothedScFrequency_.setCurrentAndTargetValue(kScFilterOffHz);
     updateSidechainFilterCoeffs(100.0f);  // initial coeffs for when filter is used
     sidechainMonoBuffer_.setSize(1, juce::jmax(512, samplesPerBlock));
@@ -270,6 +272,7 @@ void OmbicCompressorProcessor::releaseResources()
 {
     fetChain_.reset();
     optoChain_.reset();
+    vcaChain_.reset();
     pwmChain_.reset();
     iron_.reset();
     standaloneNeon_.reset();
@@ -347,21 +350,24 @@ void OmbicCompressorProcessor::ensureChains()
     bool fetOk = fetishDir.getChildFile("compression_curve.csv").existsAsFile();
     bool lalaOk = lalaDir.getChildFile("compression_curve.csv").existsAsFile();
     bool vcaOk = vcaDir.getChildFile("compression_curve.csv").existsAsFile();
-    std::optional<float> noFrDrive;
+    // FR/THD from curve data (frequency_response.csv, thd_vs_level.json) add measured tone/colour.
+    std::optional<float> frDriveDb;  // {} = use all FR rows (no drive filter)
+    const bool useCharacterFr = true;
+    const bool useCharacterThd = true;
     if (fetOk && !fetChain_)
         fetChain_ = std::make_unique<emulation::MVPChain>(
             emulation::MVPChain::Mode::FET, sampleRateHz,
-            fetishDir, lalaDir, vcaDir, false, false, noFrDrive, 1.0f,
+            fetishDir, lalaDir, vcaDir, useCharacterFr, useCharacterThd, frDriveDb, 1.0f,
             true, false, 0.02f, 1000.0f, 0.0f, 0.92f, 1.0f, false);
     if (lalaOk && !optoChain_)
         optoChain_ = std::make_unique<emulation::MVPChain>(
             emulation::MVPChain::Mode::Opto, sampleRateHz,
-            fetishDir, lalaDir, vcaDir, false, false, noFrDrive, 1.0f,
+            fetishDir, lalaDir, vcaDir, useCharacterFr, useCharacterThd, frDriveDb, 1.0f,
             true, false, 0.02f, 1000.0f, 0.0f, 0.92f, 1.0f, false);
     if (vcaOk && !vcaChain_)
         vcaChain_ = std::make_unique<emulation::MVPChain>(
             emulation::MVPChain::Mode::VCA, sampleRateHz,
-            fetishDir, lalaDir, vcaDir, false, false, noFrDrive, 1.0f,
+            fetishDir, lalaDir, vcaDir, useCharacterFr, useCharacterThd, frDriveDb, 1.0f,
             true, false, 0.02f, 1000.0f, 0.0f, 0.92f, 1.0f, false);
     if (fetChain_ || optoChain_ || vcaChain_)
         curveDataLoaded_.store(true);
@@ -374,8 +380,8 @@ void OmbicCompressorProcessor::ensurePwmChain()
         sampleRateHz, true, true, 0.02f, 1000.0f, 0.0f, 0.92f, 1.0f, false);
 }
 
-float OmbicCompressorProcessor::estimateMakeupDb(int mode, float thresholdRaw, float ratio,
-                                                 float attackParam, float releaseParam, float speedParam) const
+float OmbicCompressorProcessor::estimateMakeupDb(int /* mode */, float thresholdRaw, float ratio,
+                                                 float /* attackParam */, float /* releaseParam */, float /* speedParam */) const
 {
     float thresholdDb = -60.0f + (thresholdRaw / 100.0f) * 60.0f;
     float peakDb = -6.0f;
@@ -601,7 +607,13 @@ void OmbicCompressorProcessor::processBlock(juce::AudioBuffer<float>& buffer, ju
         }
         float makeupTotal = makeupDb;
         if (autoGain)
-            makeupTotal += estimateMakeupDb(mode, thresholdRaw, ratio, attackParam, releaseParam, speedParam);
+        {
+            // Use actual gain reduction for makeup so output level stays consistent when switching
+            // FET character (Off/Rev A/LN), Opto, or VCA; same for PWM. Smooth to avoid gain pumping.
+            smoothedMakeupGrDb_.setTargetValue(gainReductionDb.load());
+            makeupTotal += smoothedMakeupGrDb_.getCurrentValue();
+            smoothedMakeupGrDb_.skip(numSamples);
+        }
         makeupTotal = juce::jlimit(-24.0f, 24.0f, makeupTotal);
         float makeupGain = std::pow(10.0f, makeupTotal / 20.0f);
         buffer.applyGain(makeupGain);

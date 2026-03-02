@@ -44,7 +44,7 @@ private:
         int peakHoldTicks_ = 0;
         static constexpr float kPeakAttackCoeff = 0.99f;
         static constexpr float kPeakReleaseCoeff = 0.054f;
-        static constexpr int kPeakHoldTicks = 90;  // ~2 s at 45 Hz
+        static constexpr int kPeakHoldTicks = 120;  // ~2 s at 60 Hz
     };
 
     LevelMeterComponent inMeter_;
@@ -59,12 +59,13 @@ private:
     juce::ToggleButton autoGainButton;
     juce::Label grLabel_;       // "GR" 8px above value
     juce::Label grReadoutLabel_;
+    juce::Label grPeakLabel_;
     float smoothedGrDb_ = 0.0f;
     float grHoldDb_ = 0.0f;
     int grHoldTicks_ = 0;
     static constexpr float kGrAttackCoeff = 0.77f;
     static constexpr float kGrReleaseCoeff = 0.071f;
-    static constexpr int kGrHoldTicks = 68;
+    static constexpr int kGrHoldTicks = 90;  // ~1.5 s at 60 Hz
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OutputSection)
 };

@@ -68,12 +68,13 @@ private:
     juce::Label releaseLabel;
     juce::Label speedLabel;
     juce::Label grReadoutLabel;
+    juce::Label grPeakLabel;
     float smoothedGrDb_ = 0.0f;
     float grHoldDb_ = 0.0f;
     int grHoldTicks_ = 0;
     static constexpr float kGrAttackCoeff = 0.77f;
     static constexpr float kGrReleaseCoeff = 0.071f;
-    static constexpr int kGrHoldTicks = 68;
+    static constexpr int kGrHoldTicks = 90;  // ~1.5 s at 60 Hz
 
     class GainReductionMeterComponent : public juce::Component
     {
@@ -87,7 +88,7 @@ private:
         int grHoldTicks_ = 0;
         static constexpr float kGrAttackCoeff = 0.77f;
         static constexpr float kGrReleaseCoeff = 0.071f;
-        static constexpr int kGrHoldTicks = 68;
+        static constexpr int kGrHoldTicks = 90;  // ~1.5 s at 60 Hz
     } grMeter;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CompressorSection)

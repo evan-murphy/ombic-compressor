@@ -17,6 +17,7 @@ static void updatePeakBallistics(float rawDb, float& peakDb, float attackCoeff, 
 MeterStrip::MeterStrip(OmbicCompressorProcessor& processor)
     : proc(processor)
 {
+    grHistory_.resize(kGrHistorySize, 0.0f);
     peakButton_.setButtonText("Peak");
     peakButton_.setClickingTogglesState(false);
     peakButton_.onClick = [this]() { showPeak_ = true; peakButton_.setToggleState(true, juce::dontSendNotification); vuButton_.setToggleState(false, juce::dontSendNotification); };
@@ -64,6 +65,10 @@ void MeterStrip::timerCallback()
     if (smoothedGrDb_ > grHoldDb_) { grHoldDb_ = smoothedGrDb_; grHoldTicks_ = kGrHoldTicks; }
     else { if (grHoldTicks_ > 0) --grHoldTicks_; if (grHoldTicks_ <= 0) grHoldDb_ += kGrReleaseCoeff * (smoothedGrDb_ - grHoldDb_); }  // decay hold toward current
 
+    grHistory_[grHistoryWrite_ % kGrHistorySize] = smoothedGrDb_;
+    ++grHistoryWrite_;
+    if (grHistoryWrite_ >= kGrHistorySize) grHistoryFilled_ = true;
+
     repaint();
 }
 
@@ -101,6 +106,7 @@ void MeterStrip::paint(juce::Graphics& g)
         b = b.withTrimmedBottom(static_cast<float>(peakButton_.getHeight() + 4));
 
     const int meterW = 28;
+    const int grHistoryW = 20;
     const int gap = 10;
     const float boxH = b.getHeight() - 36.0f;
     int x = static_cast<int>(b.getX()) + 24;
@@ -180,6 +186,32 @@ void MeterStrip::paint(juce::Graphics& g)
         drawLevelMeterStereo(levelToNorm(peakInL_), levelToNorm(peakInR_), peakHoldInDb_, OmbicLookAndFeel::ombicBlue(), "In", inDisplayDb);
     else
         drawLevelMeterMono(inNorm, OmbicLookAndFeel::ombicBlue(), "In", inDisplayDb);
+
+    // Scrolling GR history strip (~500 ms), left of GR bar
+    auto grHistBox = b.withX(static_cast<float>(x)).withWidth(static_cast<float>(grHistoryW)).withHeight(boxH).reduced(1);
+    g.setColour(OmbicLookAndFeel::ink());
+    g.drawRoundedRectangle(grHistBox, 4.0f, 2.0f);
+    g.setColour(OmbicLookAndFeel::line());
+    g.fillRoundedRectangle(grHistBox.reduced(1), 3.0f);
+    const float grFullScaleHist = 40.0f;
+    size_t n = grHistoryFilled_ ? kGrHistorySize : grHistoryWrite_;
+    if (n > 1)
+    {
+        juce::Path path;
+        for (size_t i = 0; i < n; ++i)
+        {
+            size_t idx = grHistoryFilled_ ? ((grHistoryWrite_ + i) % kGrHistorySize) : i;
+            float grDb = grHistory_[idx];
+            float xf = grHistBox.getX() + 2.0f + (grHistBox.getWidth() - 4.0f) * (float)i / (float)(n - 1);
+            float norm = juce::jlimit(0.0f, 1.0f, grDb / grFullScaleHist);
+            float yf = grHistBox.getBottom() - 2.0f - (grHistBox.getHeight() - 4.0f) * norm;
+            if (i == 0) path.startNewSubPath(xf, yf);
+            else path.lineTo(xf, yf);
+        }
+        g.setColour(OmbicLookAndFeel::ombicRed().withAlpha(0.85f));
+        g.strokePath(path, juce::PathStrokeType(1.2f));
+    }
+    x += grHistoryW + gap;
 
     auto grBox = b.withX(static_cast<float>(x)).withWidth(static_cast<float>(meterW)).withHeight(boxH).reduced(1);
     g.setColour(OmbicLookAndFeel::ink());
