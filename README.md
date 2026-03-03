@@ -1,6 +1,6 @@
 # Ombic Compressor
 
-VST3 compressor plugin with **four topologies** (Opto, FET, PWM, VCA), **neon bulb saturation**, optional **Iron** transformer colour, transfer-curve metering, and sidechain filtering. Built with JUCE 7+. **Standalone** — no dependency on any other repo or tool. Curve data is **included in this repo** and packaged with the plugin. For the big picture (curve data, two systems), see **docs/ARCHITECTURE.md**.
+VST3/AU compressor plugin with **four topologies** (Opto, FET, PWM, VCA), **neon bulb saturation**, optional **Iron** transformer colour, transfer-curve metering, and sidechain filtering. Built with JUCE 7+. **Standalone** — no dependency on any other repo or tool. Curve data is **included in this repo** and packaged with the plugin. For the big picture (curve data, two systems), see **docs/ARCHITECTURE.md**.
 
 The saturator is called “neon bulb” because the level **wobbles randomly in time**, like an old neon sign, not because of how the waveform is clipped — so you get living, unstable level on top of harmonic saturation.
 
@@ -21,12 +21,13 @@ The saturator is called “neon bulb” because the level **wobbles randomly in 
 
 3. **Find the plugin**
    - VST3: `build/Plugin/OmbicCompressor_artefacts/VST3/`  
-   - On macOS the build also installs to `~/Library/Audio/Plug-Ins/VST3/Ombic Compressor.vst3`.
+   - AU (macOS): `build/Plugin/OmbicCompressor_artefacts/AU/Ombic Compressor.component`  
+   - On macOS the build also installs to `~/Library/Audio/Plug-Ins/VST3/` and `~/Library/Audio/Plug-Ins/Components/` (for Logic, GarageBand, etc.).
 
 4. **Use it**  
-   Rescan VST3s in your DAW (or restart the DAW). Load **Ombic Compressor** on a track. Choose a **compressor mode** (Opto / FET / PWM / VCA), set threshold (and ratio/attack/release or speed depending on mode), then adjust **Neon** and **Output** as needed.
+   Rescan plugins in your DAW (or restart the DAW). Load **Ombic Compressor** on a track. Logic and GarageBand users: use the AU version from the Components folder. Choose a **compressor mode** (Opto / FET / PWM / VCA), set threshold (and ratio/attack/release or speed depending on mode), then adjust **Neon** and **Output** as needed.
 
-**Curve data:** The repo includes curve data for Opto and FET modes (required) and optionally for VCA. The build bundles them into the VST3. If you cloned without curve data, see **docs/ARCHITECTURE.md** and run `./scripts/import-curve-data.sh /path/to/curve-data-for-compressor.tar` if you have a tarball.
+**Curve data:** The repo includes curve data for Opto and FET modes (required) and optionally for VCA. The build bundles them into the VST3 and AU. If you cloned without curve data, see **docs/ARCHITECTURE.md** and run `./scripts/import-curve-data.sh /path/to/curve-data-for-compressor.tar` if you have a tarball.
 
 ---
 
@@ -70,9 +71,10 @@ From the repo root:
 ```
 
 - **VST3 only:** `cmake --build build --target OmbicCompressor_VST3`
-- **Distribution zip** (VST3 + Standalone for another Mac): `./scripts/build.sh dist` → `build/OmbicCompressor-1.0.0-Darwin.zip`
+- **AU only (macOS):** `cmake --build build --target OmbicCompressor_AU`
+- **Distribution zip** (VST3 + AU + Standalone for another Mac): `./scripts/build.sh dist` → `build/OmbicCompressor-1.0.0-Darwin.zip`
 
-Curve data is bundled automatically (Opto and FET always; VCA when present). Runtime: plugin loads from the VST3 bundle, or from project `output/` / `OMBIC_COMPRESSOR_DATA_PATH` when running from the project directory.
+Curve data is bundled automatically (Opto and FET always; VCA when present). Runtime: plugin loads from the VST3 or AU bundle, or from project `output/` / `OMBIC_COMPRESSOR_DATA_PATH` when running from the project directory.
 
 ---
 
@@ -98,9 +100,9 @@ See **docs/GUI_SPEC.md** for the full parameter list and **docs/TESTING_PROTOCOL
 ./scripts/build.sh dist
 ```
 
-This creates `build/OmbicCompressor-1.0.0-Darwin.zip`. On the other machine: unzip, then copy `VST3/Ombic Compressor.vst3` to `~/Library/Audio/Plug-Ins/VST3/` (and optionally `Standalone/Ombic Compressor.app` to `/Applications`).
+This creates `build/OmbicCompressor-1.0.0-Darwin.zip`. On the other machine: unzip, then copy `VST3/Ombic Compressor.vst3` to `~/Library/Audio/Plug-Ins/VST3/`, `AU/Ombic Compressor.component` to `~/Library/Audio/Plug-Ins/Components/` (for Logic, GarageBand), and optionally `Standalone/Ombic Compressor.app` to `/Applications`.
 
-You can also copy `build/Plugin/OmbicCompressor_artefacts` and move the VST3 bundle and/or app from there. No separate installer is required; the plugin is self-contained and ships with curve data inside the VST3.
+You can also copy `build/Plugin/OmbicCompressor_artefacts` and move the VST3 bundle, AU component, and/or app from there. No separate installer is required; the plugin is self-contained and ships with curve data inside each format.
 
 ---
 
