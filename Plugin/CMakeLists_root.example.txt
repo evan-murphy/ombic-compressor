@@ -1,0 +1,40 @@
+# Example root CMakeLists.txt to build the plugin.
+# Copy to parent folder or integrate into your main project.
+#
+# Option A: JUCE as subdirectory (clone JUCE next to Plugin/)
+#   add_subdirectory(JUCE)
+#   add_subdirectory(Plugin)
+#
+# Option B: FetchContent (JUCE 7)
+#   include(FetchContent)
+#   FetchContent_Declare(juce
+#       GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+#       GIT_TAG 7.0.9
+#       GIT_SHALLOW TRUE)
+#   FetchContent_MakeAvailable(juce)
+#   add_subdirectory(Plugin)
+#
+# Option C: find_package (if JUCE installed)
+#   find_package(JUCE 7 CONFIG REQUIRED)
+#   add_subdirectory(Plugin)
+
+cmake_minimum_required(VERSION 3.22)
+project(OmbicCompressorHost LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+
+# Uncomment one of the following:
+
+# add_subdirectory(path/to/JUCE)
+# add_subdirectory(Plugin)
+
+# Or with FetchContent (uncomment and set path):
+# include(FetchContent)
+# FetchContent_Declare(juce
+#     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+#     GIT_TAG 7.0.9
+#     GIT_SHALLOW TRUE)
+# FetchContent_MakeAvailable(juce)
+# add_subdirectory(Plugin)
+
+message(STATUS "To build the plugin, add JUCE and then add_subdirectory(Plugin)")

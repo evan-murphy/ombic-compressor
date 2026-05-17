@@ -1,0 +1,15 @@
+# Build
+build/
+CMakeCache.txt
+CMakeFiles/
+*.cmake
+!CMakeLists.txt
+
+# IDE / OS
+.idea/
+.vscode/
+*.user
+.DS_Store
+
+# Curve data (output/fetish_v2, output/lala_v2) is required and committed; do not ignore
+# output/

@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Main VU design options — compressor input / output / gain reduction (primary focal point)</title>
+  <style>
+    /* OMBIC palette — same as neon-bulb-mockup */
+    :root {
+      --ombic-red:     #ff001f;
+      --ombic-blue:    #076dc3;
+      --ombic-teal:    #338fab;
+      --ombic-yellow:  #ffce00;
+      --ombic-purple:  #5300aa;
+      --ombic-pink:    #ffb3c9;
+      --neon-pink:     #e85590;
+      --plugin-bg:     #0f1220;
+      --plugin-surface: #181c2e;
+      --plugin-raised:  #222840;
+      --plugin-text:   #e6e9ef;
+      --plugin-muted:  #6b7280;
+      --plugin-border: rgba(230, 233, 239, 0.2);
+      --plugin-border-strong: rgba(230, 233, 239, 0.35);
+      --scope-bg:      #080a12;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--plugin-bg);
+      color: var(--plugin-text);
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+      color: var(--plugin-text);
+    }
+    .intro {
+      color: var(--plugin-muted);
+      font-size: 0.875rem;
+      margin-bottom: 16px;
+      max-width: 720px;
+    }
+    .rationale {
+      background: var(--plugin-raised);
+      border: 1px solid var(--plugin-border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      font-size: 0.8rem;
+      color: var(--plugin-muted);
+      max-width: 720px;
+    }
+    .rationale strong { color: var(--plugin-text); }
+    .options {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 24px;
+    }
+    .card {
+      background: var(--plugin-surface);
+      border: 1px solid var(--plugin-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .card-header {
+      background: var(--ombic-blue);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 10px 14px;
+    }
+    .card-label {
+      font-size: 0.7rem;
+      color: var(--plugin-muted);
+      margin-top: 6px;
+      padding: 0 14px 8px;
+      border-bottom: 1px solid var(--plugin-border);
+      line-height: 1.35;
+    }
+    .vu-area {
+      min-height: 120px;
+      margin: 10px;
+      background: var(--scope-bg);
+      border-radius: 10px;
+      border: 1px solid var(--plugin-border);
+      position: relative;
+      overflow: hidden;
+    }
+    .vu-area svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .prompts-section {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid var(--plugin-border);
+      max-width: 720px;
+    }
+    .prompts-section h2 {
+      font-size: 1rem;
+      margin: 0 0 12px 0;
+      color: var(--plugin-text);
+    }
+    .prompts-section p, .prompts-section pre {
+      font-size: 0.8rem;
+      color: var(--plugin-muted);
+      margin: 0 0 8px 0;
+    }
+    .prompts-section pre {
+      background: var(--scope-bg);
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true">
+    <defs>
+      <filter id="mainGlow1"><feGaussianBlur stdDeviation="2"/></filter>
+    </defs>
+  </svg>
+  <h1>Main VU design options</h1>
+  <p class="intro">Primary visual focal point for the plugin: compressor <strong>input</strong>, <strong>gain reduction</strong>, and <strong>output</strong> (replacing the current three vertical bars). Neon saturation will remain a smaller separate module. Pick one or combine ideas for the final spec.</p>
+
+  <div class="rationale" style="border-color: var(--ombic-teal);">
+    <strong>Chosen direction:</strong> Toggle between <strong>Option 3</strong> (default) and <strong>Option 9</strong>. Default = transfer curve as focal point with live dot and In/GR/Out readouts (FabFilter-style). User can switch to “Simple VU” = vintage arc meters (Option 9). See <strong>main-vu-toggle-demo.html</strong> for the interactive toggle.
+  </div>
+
+  <div class="rationale">
+    <strong>Design guidance:</strong> GUI best practices call for input/output + GR together with VU-style ballistics (~300 ms); transfer curve (in vs out) is standard in pro plugins (e.g. FabFilter Pro-C 2). Perplexity research on combining VU/GR with process visualization suggests either (a) waveform/level in the same component (e.g. waveform as context for a VU strip) or (b) clear separation with complementary feedback. Option 6 in the neon mockup (waveform + integrated level strip) is the chosen inspiration: one coherent “process + level” focal area.
+  </div>
+
+  <div class="options">
+
+    <!-- Option 1: Option-6 style — waveform + triple strip (In | GR | Out) -->
+    <div class="card" data-option="1">
+      <div class="card-header">MAIN VU</div>
+      <div class="card-label">Option 1 — Waveform + integrated triple strip (In | GR | Out). One waveform (e.g. input or output), three slim vertical segments side-by-side with segment fill and zone colors (e.g. red near 0 dB / GR).</div>
+      <div class="vu-area" id="vu-opt1" style="display: flex;">
+        <div style="flex: 1; position: relative;">
+          <svg viewBox="0 0 240 120" preserveAspectRatio="none" style="width:100%; height:100%;">
+            <path id="opt1-wave-glow" fill="none" stroke="var(--ombic-teal)" stroke-width="10" opacity="0.3" filter="url(#mainGlow1)"/>
+            <path id="opt1-wave" fill="none" stroke="var(--ombic-teal)" stroke-width="2" opacity="0.9"/>
+          </svg>
+        </div>
+        <div id="opt1-strips" style="width: 72px; margin: 8px; display: flex; gap: 6px; align-items: stretch;"></div>
+      </div>
+    </div>
+
+    <!-- Option 2: Dual waveform (input vs output overlay) + GR strip -->
+    <div class="card" data-option="2">
+      <div class="card-header">MAIN VU</div>
+      <div class="card-label">Option 2 — Dual waveform: input (blue) and output (teal) overlaid; GR as a slim vertical strip to the right. Shows “before/after” compression in one glance.</div>
+      <div class="vu-area" id="vu-opt2" style="display: flex;">
+        <div style="flex: 1; position: relative;">
+          <svg viewBox="0 0 240 120" preserveAspectRatio="none" style="width:100%; height:100%;">
+            <path id="opt2-in-glow" fill="none" stroke="var(--ombic-blue)" stroke-width="8" opacity="0.2" filter="url(#mainGlow1)"/>
+            <path id="opt2-in" fill="none" stroke="var(--ombic-blue)" stroke-width="1.5" opacity="0.8"/>
+            <path id="opt2-out-glow" fill="none" stroke="var(--ombic-teal)" stroke-width="8" opacity="0.25" filter="url(#mainGlow1)"/>
+            <path id="opt2-out" fill="none" stroke="var(--ombic-teal)" stroke-width="1.5" opacity="0.95"/>
+          </svg>
+        </div>
+        <div id="opt2-gr-strip" style="width: 24px; margin: 8px; background: var(--plugin-raised); border-radius: 4px; display: flex; flex-direction: column-reverse; gap: 2px; padding: 4px;"></div>
+      </div>
+    </div>
+
+    <!-- Option 3: Transfer curve as hero + compact In/GR/Out readouts -->
+    <div class="card" data-option="3">
+      <div class="card-header">MAIN VU</div>
+      <div class="card-label">Option 3 — Transfer curve (input vs output) as the focal graphic; live dot = current (in, out). In / GR / Out as compact numeric readouts or tiny bars below. Matches FabFilter-style “curve + context.”</div>
+      <div class="vu-area" id="vu-opt3">
+        <svg viewBox="0 0 280 120" preserveAspectRatio="none">
+          <line x1="20" y1="100" x2="100" y2="20" stroke="var(--plugin-border)" stroke-width="1" stroke-dasharray="4 2"/>
+          <path id="opt3-curve" fill="none" stroke="var(--ombic-red)" stroke-width="2"/>
+          <circle id="opt3-dot" r="5" fill="var(--ombic-teal)" stroke="white" stroke-width="1"/>
+          <text x="12" y="18" fill="var(--plugin-muted)" font-size="8">out</text>
+          <text x="255" y="108" fill="var(--plugin-muted)" font-size="8">in</text>
+        </svg>
+        <div id="opt3-readouts" style="position: absolute; bottom: 6px; left: 0; right: 0; display: flex; justify-content: center; gap: 24px; font-size: 0.7rem;"></div>
+      </div>
+    </div>
+
+    <!-- Option 4: Horizontal “bridge” — In (left) | GR (center) | Out (right) -->
+    <div class="card" data-option="4">
+      <div class="card-header">MAIN VU</div>
+      <div class="card-label">Option 4 — One horizontal “bridge”: three segments in a row. Left = input level (blue), center = gain reduction (red), right = output level (teal). Single bar with three colored zones; labels below.</div>
+      <div class="vu-area" id="vu-opt4" style="min-height: 80px;">
+        <svg viewBox="0 0 280 80" preserveAspectRatio="none">
+          <rect x="10" y="24" width="260" height="24" rx="4" fill="var(--plugin-raised)" stroke="var(--plugin-border)"/>
+          <rect id="opt4-in" x="12" y="26" width="0" height="20" rx="3" fill="var(--ombic-blue)"/>
+          <rect id="opt4-gr" x="92" y="26" width="0" height="20" rx="3" fill="var(--ombic-red)"/>
+          <rect id="opt4-out" x="172" y="26" width="0" height="20" rx="3" fill="var(--ombic-teal)"/>
+          <text x="96" y="58" fill="var(--plugin-muted)" font-size="9" text-anchor="middle">In</text>
+          <text x="176" y="58" fill="var(--plugin-muted)" font-size="9" text-anchor="middle">GR</text>
+          <text x="256" y="58" fill="var(--plugin-muted)" font-size="9" text-anchor="middle">Out</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Option 5: Segmented LED strip × 3 rows (In, GR, Out) -->
+    <div class="card" data-option="5">
+      <div class="card-header">MAIN VU</div>
+      <div class="card-label">Option 5 — Three horizontal segmented strips (LED-style): row 1 = In, row 2 = GR, row 3 = Out. Segments fill by level; top segment can change color (e.g. red near 0 dB). Very readable at a glance.</div>
+      <div class="vu-area" id="vu-opt5">
+        <div id="opt5-rows" style="display: flex; flex-direction: column; gap: 8px; padding: 10px; height: 100%;"></div>
+      </div>
+    </div>
+
+    <!-- Option 6: One big vertical meter with In + Out traces and GR bar -->
+    <div class="card" data-option="6">
+      <div class="card-header">MAIN VU</div>
+      <div class="card-label">Option 6 — Single tall vertical meter: two “trace” bars (input blue, output teal) and a separate GR bar (red) beside or overlaid. Scale 0 / -20 / -40 / -60 dB on the left. One coherent column as focal point.</div>
+      <div class="vu-area" id="vu-opt6" style="display: flex;">
+        <div style="width: 28px; margin: 8px 4px; display: flex; flex-direction: column-reverse; gap: 2px; background: var(--plugin-raised); border-radius: 4px; padding: 4px;" id="opt6-in-bar"></div>
+        <div style="width: 28px; margin: 8px 4px; display: flex; flex-direction: column-reverse; gap: 2px; background: var(--plugin-raised); border-radius: 4px; padding: 4px;" id="opt6-gr-bar"></div>
+        <div style="width: 28px; margin: 8px 4px; display: flex; flex-direction: column-reverse; gap: 2px; background: var(--plugin-raised); border-radius: 4px; padding: 4px;" id="opt6-out-bar"></div>
+        <div style="flex: 1; margin: 8px; position: relative;">
+          <svg viewBox="0 0 200 120" preserveAspectRatio="none" style="width:100%; height:100%;">
+            <path id="opt6-in-trace" fill="none" stroke="var(--ombic-blue)" stroke-width="2" opacity="0.7"/>
+            <path id="opt6-out-trace" fill="none" stroke="var(--ombic-teal)" stroke-width="2" opacity="0.9"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Option 7: Waveform with GR as “reduction” layer (filled region) -->
+    <div class="card" data-option="7">
+      <div class="card-header">MAIN VU</div>
+      <div class="card-label">Option 7 — Waveform (input or output) with gain reduction shown as a second layer: e.g. a filled region or “gap” between input and output level over time. GR = visual difference between two curves or a shaded band.</div>
+      <div class="vu-area" id="vu-opt7">
+        <svg viewBox="0 0 280 120" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="grGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="var(--ombic-red)" stop-opacity="0.4"/>
+              <stop offset="1" stop-color="var(--ombic-red)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path id="opt7-in" fill="none" stroke="var(--ombic-blue)" stroke-width="1.5" opacity="0.8"/>
+          <path id="opt7-out" fill="none" stroke="var(--ombic-teal)" stroke-width="1.5" opacity="0.9"/>
+          <path id="opt7-gr-band" fill="url(#grGrad)" stroke="none" opacity="0.8"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Option 8: Minimal — one large waveform + floating In/GR/Out badges -->
+    <div class="card" data-option="8">
+      <div class="card-header">MAIN VU</div>
+      <div class="card-label">Option 8 — Minimal: one large waveform as hero; In, GR, and Out as small numeric badges or pill labels (e.g. corner or overlay). Maximum space for the signal; metering secondary but present.</div>
+      <div class="vu-area" id="vu-opt8" style="position: relative;">
+        <svg viewBox="0 0 280 120" preserveAspectRatio="none">
+          <path id="opt8-wave-glow" fill="none" stroke="var(--ombic-teal)" stroke-width="12" opacity="0.25" filter="url(#mainGlow1)"/>
+          <path id="opt8-wave" fill="none" stroke="var(--ombic-teal)" stroke-width="2"/>
+        </svg>
+        <div style="position: absolute; top: 6px; right: 8px; display: flex; gap: 8px; font-size: 0.65rem;">
+          <span id="opt8-in-badge" style="background: var(--ombic-blue); color: white; padding: 2px 6px; border-radius: 4px;">In -12 dB</span>
+          <span id="opt8-gr-badge" style="background: var(--ombic-red); color: white; padding: 2px 6px; border-radius: 4px;">GR 3 dB</span>
+          <span id="opt8-out-badge" style="background: var(--ombic-teal); color: white; padding: 2px 6px; border-radius: 4px;">Out -15 dB</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Option 9: Vintage arc (semicircle) In + Out, GR as center bar -->
+    <div class="card" data-option="9">
+      <div class="card-header">MAIN VU</div>
+      <div class="card-label">Option 9 — Vintage VU: two semicircular arcs (input blue, output teal) with “needle” or fill; GR as a horizontal bar or needle in the center. Distinctive, hardware-inspired focal point.</div>
+      <div class="vu-area" id="vu-opt9">
+        <svg viewBox="0 0 280 120" preserveAspectRatio="xMidYMid meet">
+          <path d="M 40 100 A 100 100 0 0 1 240 100" fill="none" stroke="var(--plugin-border)" stroke-width="6"/>
+          <path id="opt9-in-arc" d="M 40 100 A 100 100 0 0 1 240 100" fill="none" stroke="var(--ombic-blue)" stroke-width="6" stroke-dasharray="157 314" stroke-linecap="round"/>
+          <path id="opt9-out-arc" d="M 40 100 A 100 100 0 0 1 240 100" fill="none" stroke="var(--ombic-teal)" stroke-width="6" stroke-dasharray="120 314" stroke-linecap="round"/>
+          <rect id="opt9-gr-bar" x="100" y="52" width="0" height="16" rx="2" fill="var(--ombic-red)"/>
+          <text x="140" y="95" fill="var(--plugin-muted)" font-size="8" text-anchor="middle">In / Out / GR</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Option 10: Stacked — waveform top, transfer curve bottom -->
+    <div class="card" data-option="10">
+      <div class="card-header">MAIN VU</div>
+      <div class="card-label">Option 10 — Stacked: top half = waveform (input or output); bottom half = transfer curve (in vs out) with current operating point. In/GR/Out readouts on the side or under the curve. Two complementary views in one block.</div>
+      <div class="vu-area" id="vu-opt10" style="display: flex; flex-direction: column;">
+        <div style="flex: 1; min-height: 50px;">
+          <svg viewBox="0 0 280 55" preserveAspectRatio="none" style="width:100%; height:100%;">
+            <path id="opt10-wave" fill="none" stroke="var(--ombic-teal)" stroke-width="1.5" opacity="0.9"/>
+          </svg>
+        </div>
+        <div style="flex: 1; min-height: 50px;">
+          <svg viewBox="0 0 280 55" preserveAspectRatio="none" style="width:100%; height:100%;">
+            <line x1="10" y1="45" x2="50" y2="5" stroke="var(--plugin-border)" stroke-dasharray="2 2"/>
+            <path id="opt10-curve" fill="none" stroke="var(--ombic-red)" stroke-width="1.5"/>
+            <circle id="opt10-dot" r="3" fill="var(--ombic-teal)"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <section class="prompts-section">
+    <h2>Suggested Perplexity prompts (optional)</h2>
+    <p>Use these if you want evidence or precedents before locking a direction.</p>
+    <p><strong>Prompt A — Compressor main meter as primary focal point:</strong></p>
+    <pre>In professional compressor plugins (FabFilter Pro-C 2, Waves, SSL, UA, etc.), how is the main level metering (input, gain reduction, output) designed as the primary visual focal point of the UI? Do any combine a waveform or transfer curve with level meters in a single component? Cite layout patterns and any stated design rationale. Scope: 2010–2025.</pre>
+    <p><strong>Prompt B — Waveform + VU in one view:</strong></p>
+    <pre>Which audio plugins show a real-time waveform and level (VU or dB) in the same visual component—e.g. waveform with an integrated level strip or overlay? I need examples and any UX rationale for combining vs separating these. Include DAW mixer designs if relevant.</pre>
+  </section>
+
+  <script>
+    (function() {
+      const w = 240, h = 120;
+      const dbToNorm = (db) => Math.max(0, Math.min(1, (db + 60) / 60));
+      const grToNorm = (db) => Math.max(0, Math.min(1, db / 20));
+
+      function waveformPoints(n, t, scale) {
+        scale = scale || 1;
+        const pts = [];
+        for (let i = 0; i <= n; i++) {
+          const x = i / n;
+          const y = 0.5 + 0.4 * Math.sin(4 * Math.PI * x + t * 0.002) * scale;
+          pts.push([x * w, y * h]);
+        }
+        return pts;
+      }
+
+      function pathD(points) {
+        return points.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+      }
+
+      let t = 0;
+      setInterval(() => { t += 60; updateAll(t); }, 80);
+      updateAll(0);
+
+      function updateAll(t) {
+        const inDb = -12 + 8 * Math.sin(t * 0.001);
+        const grDb = 2 + 4 * Math.sin(t * 0.0007);
+        const outDb = inDb - grDb;
+        const inNorm = dbToNorm(inDb);
+        const grNorm = grToNorm(grDb);
+        const outNorm = dbToNorm(outDb);
+
+        const pts = waveformPoints(80, t, 0.7 + 0.3 * inNorm);
+        const ptsIn = waveformPoints(80, t, inNorm);
+        const ptsOut = waveformPoints(80, t, outNorm);
+
+        // Option 1
+        const opt1Glow = document.getElementById('opt1-wave-glow');
+        const opt1Wave = document.getElementById('opt1-wave');
+        if (opt1Glow) opt1Glow.setAttribute('d', pathD(pts));
+        if (opt1Wave) opt1Wave.setAttribute('d', pathD(pts));
+        const strip1 = document.getElementById('opt1-strips');
+        if (strip1 && !strip1.querySelector('.seg')) {
+          ['In', 'GR', 'Out'].forEach((label, i) => {
+            const col = document.createElement('div');
+            col.style.cssText = 'width: 20px; display: flex; flex-direction: column-reverse; gap: 2px; padding: 4px; background: var(--plugin-raised); border-radius: 4px;';
+            for (let s = 0; s < 10; s++) {
+              const seg = document.createElement('div');
+              seg.className = 'seg';
+              seg.style.cssText = 'height: 4px; border-radius: 1px; background: var(--plugin-border); transition: background 0.1s;';
+              col.appendChild(seg);
+            }
+            strip1.appendChild(col);
+          });
+        }
+        if (strip1) {
+          const cols = strip1.querySelectorAll('div');
+          const vals = [inNorm, grNorm, outNorm];
+          const colors = ['var(--ombic-blue)', 'var(--ombic-red)', 'var(--ombic-teal)'];
+          cols.forEach((col, ci) => {
+            const segs = col.querySelectorAll('.seg');
+            const lit = Math.round((vals[ci] || 0) * segs.length);
+            segs.forEach((seg, si) => {
+              seg.style.background = si < lit ? (si >= segs.length * 0.85 ? 'var(--ombic-red)' : colors[ci]) : 'var(--plugin-border)';
+            });
+          });
+        }
+
+        // Option 2
+        if (document.getElementById('opt2-in')) {
+          document.getElementById('opt2-in').setAttribute('d', pathD(ptsIn));
+          document.getElementById('opt2-in-glow').setAttribute('d', pathD(ptsIn));
+          document.getElementById('opt2-out').setAttribute('d', pathD(ptsOut));
+          document.getElementById('opt2-out-glow').setAttribute('d', pathD(ptsOut));
+        }
+        const grStrip2 = document.getElementById('opt2-gr-strip');
+        if (grStrip2 && !grStrip2.querySelector('div')) {
+          for (let i = 0; i < 12; i++) {
+            const d = document.createElement('div');
+            d.style.cssText = 'height: 5px; border-radius: 2px; background: var(--plugin-border); transition: background 0.1s;';
+            grStrip2.appendChild(d);
+          }
+        }
+        if (grStrip2) {
+          const lit = Math.round(grNorm * 12);
+          grStrip2.querySelectorAll('div').forEach((d, i) => {
+            d.style.background = i < lit ? 'var(--ombic-red)' : 'var(--plugin-border)';
+          });
+        }
+
+        // Option 3 — transfer curve
+        const curve3 = document.getElementById('opt3-curve');
+        if (curve3) {
+          const curvePts = [];
+          for (let i = 0; i <= 20; i++) {
+            const x = 20 + (i / 20) * 240;
+            const inNormCurve = i / 20;
+            const outNormCurve = inNormCurve > 0.5 ? 0.5 + (inNormCurve - 0.5) * 0.4 : inNormCurve;
+            const y = 100 - outNormCurve * 80;
+            curvePts.push([x, y]);
+          }
+          curve3.setAttribute('d', curvePts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' '));
+        }
+        const dot3 = document.getElementById('opt3-dot');
+        if (dot3) {
+          const x = 20 + inNorm * 240, y = 100 - outNorm * 80;
+          dot3.setAttribute('cx', x);
+          dot3.setAttribute('cy', y);
+        }
+        const readouts3 = document.getElementById('opt3-readouts');
+        if (readouts3) {
+          readouts3.innerHTML = '<span style="color: var(--ombic-blue)">In ' + (inDb | 0) + ' dB</span><span style="color: var(--ombic-red)">GR ' + grDb.toFixed(1) + ' dB</span><span style="color: var(--ombic-teal)">Out ' + (outDb | 0) + ' dB</span>';
+        }
+
+        // Option 4 — bridge (three segments: In 12–88, GR 92–168, Out 172–248)
+        const bw = 76;
+        document.getElementById('opt4-in')?.setAttribute('width', inNorm * (bw - 4));
+        document.getElementById('opt4-gr')?.setAttribute('x', 92);
+        document.getElementById('opt4-gr')?.setAttribute('width', grNorm * (bw - 4));
+        document.getElementById('opt4-out')?.setAttribute('x', 172);
+        document.getElementById('opt4-out')?.setAttribute('width', outNorm * (bw - 4));
+
+        // Option 5 — three rows of segments
+        const opt5 = document.getElementById('opt5-rows');
+        if (opt5 && !opt5.querySelector('.row')) {
+          ['In', 'GR', 'Out'].forEach((label, ri) => {
+            const row = document.createElement('div');
+            row.className = 'row';
+            row.style.cssText = 'display: flex; gap: 2px; align-items: center;';
+            const lbl = document.createElement('span');
+            lbl.textContent = label;
+            lbl.style.cssText = 'width: 24px; font-size: 0.65rem; color: var(--plugin-muted);';
+            row.appendChild(lbl);
+            const segs = document.createElement('div');
+            segs.style.cssText = 'flex: 1; display: flex; gap: 2px;';
+            for (let s = 0; s < 24; s++) {
+              const seg = document.createElement('div');
+              seg.style.cssText = 'height: 12px; flex: 1; border-radius: 2px; background: var(--plugin-border); transition: background 0.08s;';
+              segs.appendChild(seg);
+            }
+            row.appendChild(segs);
+            opt5.appendChild(row);
+          });
+        }
+        if (opt5) {
+          const rows = opt5.querySelectorAll('.row');
+          const rVals = [inNorm, grNorm, outNorm];
+          const rColors = ['var(--ombic-blue)', 'var(--ombic-red)', 'var(--ombic-teal)'];
+          rows.forEach((row, ri) => {
+            const segs = row.querySelectorAll('div:last-child > div');
+            const lit = Math.round((rVals[ri] || 0) * segs.length);
+            segs.forEach((seg, si) => {
+              seg.style.background = si < lit ? (si >= segs.length - 2 ? 'var(--ombic-red)' : rColors[ri]) : 'var(--plugin-border)';
+            });
+          });
+        }
+
+        // Option 6 — traces + bars
+        ['opt6-in-bar', 'opt6-gr-bar', 'opt6-out-bar'].forEach((id, i) => {
+          const bar = document.getElementById(id);
+          if (bar && !bar.querySelector('div')) {
+            for (let s = 0; s < 14; s++) {
+              const d = document.createElement('div');
+              d.style.cssText = 'height: 4px; border-radius: 1px; background: var(--plugin-border); transition: background 0.1s;';
+              bar.appendChild(d);
+            }
+          }
+        });
+        const v6 = [inNorm, grNorm, outNorm];
+        const c6 = ['var(--ombic-blue)', 'var(--ombic-red)', 'var(--ombic-teal)'];
+        ['opt6-in-bar', 'opt6-gr-bar', 'opt6-out-bar'].forEach((id, i) => {
+          const bar = document.getElementById(id);
+          if (bar) {
+            const segs = bar.querySelectorAll('div');
+            const lit = Math.round(v6[i] * segs.length);
+            segs.forEach((seg, si) => {
+              seg.style.background = si < lit ? c6[i] : 'var(--plugin-border)';
+            });
+          }
+        });
+        document.getElementById('opt6-in-trace')?.setAttribute('d', pathD(ptsIn));
+        document.getElementById('opt6-out-trace')?.setAttribute('d', pathD(ptsOut));
+
+        // Option 7 — GR band (filled area between input and output curves)
+        let bandD = '';
+        if (ptsIn.length && ptsOut.length) {
+          for (let i = 0; i < ptsIn.length; i++) {
+            const x = (ptsIn[i][0] / w) * 280;
+            bandD += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + ptsIn[i][1].toFixed(1);
+          }
+          for (let i = ptsOut.length - 1; i >= 0; i--) {
+            const x = (ptsOut[i][0] / w) * 280;
+            bandD += ' L' + x.toFixed(1) + ',' + ptsOut[i][1].toFixed(1);
+          }
+          bandD += ' Z';
+        }
+        document.getElementById('opt7-gr-band')?.setAttribute('d', bandD);
+        document.getElementById('opt7-in')?.setAttribute('d', pathD(ptsIn));
+        document.getElementById('opt7-out')?.setAttribute('d', pathD(ptsOut));
+
+        // Option 8
+        document.getElementById('opt8-wave')?.setAttribute('d', pathD(pts));
+        document.getElementById('opt8-wave-glow')?.setAttribute('d', pathD(pts));
+        const b8 = document.getElementById('opt8-in-badge');
+        if (b8) b8.textContent = 'In ' + (inDb | 0) + ' dB';
+        const b8gr = document.getElementById('opt8-gr-badge');
+        if (b8gr) b8gr.textContent = 'GR ' + grDb.toFixed(1) + ' dB';
+        const b8out = document.getElementById('opt8-out-badge');
+        if (b8out) b8out.textContent = 'Out ' + (outDb | 0) + ' dB';
+
+        // Option 9 — arcs
+        const inDash = 157 * inNorm;
+        const outDash = 157 * outNorm;
+        document.getElementById('opt9-in-arc')?.setAttribute('stroke-dasharray', inDash + ' 314');
+        document.getElementById('opt9-out-arc')?.setAttribute('stroke-dasharray', outDash + ' 314');
+        document.getElementById('opt9-gr-bar')?.setAttribute('width', grNorm * 80);
+
+        // Option 10
+        document.getElementById('opt10-wave')?.setAttribute('d', pathD(pts));
+        const curve10 = document.getElementById('opt10-curve');
+        if (curve10) {
+          const c10 = [];
+          for (let i = 0; i <= 15; i++) {
+            const x = 10 + (i / 15) * 260;
+            const inN = i / 15;
+            const outN = inN > 0.5 ? 0.5 + (inN - 0.5) * 0.35 : inN;
+            c10.push([x, 50 - outN * 40]);
+          }
+          curve10.setAttribute('d', c10.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' '));
+        }
+        document.getElementById('opt10-dot')?.setAttribute('cx', 10 + inNorm * 260);
+        document.getElementById('opt10-dot')?.setAttribute('cy', 50 - outNorm * 40);
+      }
+    })();
+  </script>
+</body>
+</html>

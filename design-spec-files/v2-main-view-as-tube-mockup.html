@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OMBIC Compressor v2 — Main view as tube</title>
+  <style>
+    :root {
+      --ombic-red:     #ff001f;
+      --ombic-blue:    #076dc3;
+      --ombic-teal:    #338fab;
+      --ombic-yellow:  #ffce00;
+      --ombic-purple:  #5300aa;
+      --neon-pink:     #e85590;
+      --plugin-bg:     #0f1220;
+      --plugin-surface: #181c2e;
+      --plugin-raised:  #222840;
+      --plugin-text:   #e6e9ef;
+      --plugin-muted:  #6b7280;
+      --plugin-border: rgba(230, 233, 239, 0.2);
+      --scope-bg:      #080a12;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #1a1a2e;
+      color: var(--plugin-text);
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .plugin {
+      width: 960px;
+      max-width: 100%;
+      height: 540px;
+      max-height: 90vh;
+      background: var(--plugin-bg);
+      border-radius: 20px;
+      border: 3px solid rgba(230, 233, 239, 0.35);
+      box-shadow: 8px 8px 0 rgba(0,0,0,0.5);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      height: 38px;
+      background: var(--ombic-red);
+      color: white;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+    }
+    .mode-row {
+      height: 32px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--plugin-bg);
+    }
+    .pill {
+      width: 84px;
+      height: 26px;
+      border-radius: 999px;
+      border: 2px solid var(--plugin-border);
+      background: transparent;
+      color: var(--plugin-muted);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+    }
+    .pill.active {
+      background: var(--ombic-blue);
+      border-color: var(--ombic-blue);
+      color: white;
+    }
+    .pill:hover:not(.active) {
+      border-color: var(--ombic-blue);
+      color: var(--plugin-text);
+    }
+    /* Main view = the tube. Whole area glows with saturation. */
+    .main-view {
+      height: 120px;
+      margin: 12px 12px 0;
+      background: var(--scope-bg);
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      transition: box-shadow 0.15s ease, background 0.15s ease;
+    }
+    /* Inner glow overlay - driven by Drive/Intensity/Mix */
+    .main-view::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .main-view .filament-glow-path { fill: none; stroke: var(--neon-pink); stroke-width: 16; opacity: 0; transition: opacity 0.15s; }
+    .main-view .filament-line-path { fill: none; stroke: var(--neon-pink); stroke-width: 2; opacity: 0; transition: opacity 0.15s; }
+    .main-view .curve-line { fill: none; stroke: var(--ombic-blue); stroke-width: 2; }
+    .main-view .meter-in, .main-view .meter-out { fill: var(--ombic-teal); }
+    .main-view .meter-gr { fill: var(--ombic-red); }
+    .content-row {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1.8fr 1.2fr 0.8fr;
+      gap: 12px;
+      padding: 12px 12px 16px;
+      min-height: 0;
+    }
+    .card {
+      background: var(--plugin-surface);
+      border: 2px solid var(--plugin-border);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-header {
+      height: 36px;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      color: white;
+    }
+    .card.sc-filter .card-header { background: var(--ombic-teal); }
+    .card.compressor .card-header { background: var(--ombic-blue); }
+    .card.neon .card-header { background: var(--neon-pink); }
+    .card.output .card-header { background: var(--ombic-purple); }
+    .card-body {
+      flex: 1;
+      padding: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      gap: 10px;
+    }
+    .control {
+      min-width: 70px;
+    }
+    .control label {
+      display: block;
+      font-size: 8px;
+      color: var(--plugin-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .control input[type="range"] {
+      width: 100%;
+      height: 6px;
+      accent-color: var(--neon-pink);
+    }
+    .control .value { font-size: 10px; color: var(--plugin-text); }
+    .footer {
+      height: 26px;
+      padding: 0 20px;
+      border-top: 1px solid var(--plugin-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--plugin-muted);
+      letter-spacing: 0.04em;
+    }
+    .main-view-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: stretch;
+    }
+    .main-view-meters {
+      width: 24px;
+      margin: 8px 0 8px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      justify-content: flex-end;
+    }
+    .main-view-meters .seg {
+      height: 4px;
+      background: var(--plugin-border);
+      border-radius: 2px;
+      transition: background 0.1s;
+    }
+    .main-view-meters .seg.lit { background: var(--ombic-teal); }
+    .main-view-meters .seg.gr { background: var(--ombic-red); }
+    .main-view-center {
+      flex: 1;
+      position: relative;
+      margin: 8px 0;
+    }
+    .main-view-center svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .main-view-gr {
+      width: 40px;
+      margin: 8px 8px 8px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--ombic-teal);
+    }
+  </style>
+</head>
+<body>
+  <div class="plugin">
+    <header class="header">
+      <span>OMBIC COMPRESSOR</span>
+      <span style="opacity:0.85; font-size:10px;">● Ready</span>
+    </header>
+    <div class="mode-row">
+      <button type="button" class="pill active" data-mode="opto">OPTO</button>
+      <button type="button" class="pill" data-mode="fet">FET</button>
+    </div>
+    <!-- Main view = the tube. Glow and filament driven by Neon knobs below. -->
+    <div class="main-view" id="mainView">
+      <div class="main-view-inner">
+        <div class="main-view-meters" id="mainMeters">
+          <div class="seg lit" style="height:12%"></div>
+          <div class="seg lit" style="height:28%"></div>
+          <div class="seg lit" style="height:45%"></div>
+          <div class="seg" style="height:15%"></div>
+          <div class="seg gr" style="height:8%"></div>
+        </div>
+        <div class="main-view-center">
+          <svg viewBox="0 0 400 104" preserveAspectRatio="none">
+            <!-- Transfer curve (simplified diagonal + knee) -->
+            <path class="curve-line" d="M 0 104 L 120 104 L 400 24" opacity="0.7"/>
+            <!-- Filament: waveform path (updated by JS) -->
+            <path id="filamentGlow" class="filament-glow-path" filter="url(#blur)"/>
+            <path id="filamentLine" class="filament-line-path"/>
+            <defs><filter id="blur"><feGaussianBlur stdDeviation="3"/></filter></defs>
+          </svg>
+        </div>
+        <div class="main-view-gr" id="grReadout">-2.1 dB</div>
+      </div>
+    </div>
+    <div class="content-row">
+      <div class="card sc-filter">
+        <div class="card-header">SC FILTER</div>
+        <div class="card-body">
+          <div class="control"><label>Freq</label><input type="range" min="0" max="100" value="60"><span class="value">120 Hz</span></div>
+          <button type="button" style="margin-top:8px; padding:6px 10px; border-radius:6px; border:2px solid var(--plugin-border); background:transparent; color:var(--plugin-text); font-size:9px; font-weight:700;">LISTEN</button>
+        </div>
+      </div>
+      <div class="card compressor">
+        <div class="card-header">COMPRESSOR</div>
+        <div class="card-body" id="compressorBody">
+          <!-- Opto: Threshold + Compress/Limit -->
+          <div class="control opto-only" id="optoThreshold"><label>Threshold</label><input type="range" min="0" max="100" value="50"><span class="value">50%</span></div>
+          <div class="control opto-only" id="optoLimit"><label>Compress / Limit</label><select style="width:100%; padding:4px; background:var(--plugin-raised); border:1px solid var(--plugin-border); border-radius:4px; color:var(--plugin-text); font-size:9px;"><option>Compress</option><option>Limit</option></select></div>
+          <!-- FET: Threshold, Ratio, Attack, Release -->
+          <div class="control fet-only" style="display:none"><label>Threshold</label><input type="range" min="0" max="100" value="50"><span class="value">-18 dB</span></div>
+          <div class="control fet-only" style="display:none"><label>Ratio</label><input type="range" min="0" max="100" value="25"><span class="value">4:1</span></div>
+          <div class="control fet-only" style="display:none"><label>Attack</label><input type="range" min="0" max="100" value="40"><span class="value">410 ms</span></div>
+          <div class="control fet-only" style="display:none"><label>Release</label><input type="range" min="0" max="100" value="20"><span class="value">200 ms</span></div>
+        </div>
+      </div>
+      <div class="card neon">
+        <div class="card-header">NEON</div>
+        <div class="card-body" id="neonControls">
+          <div class="control"><label>Drive</label><input type="range" id="drive" min="0" max="100" value="45"><span class="value" id="vDrive">45%</span></div>
+          <div class="control"><label>Intensity</label><input type="range" id="intensity" min="0" max="100" value="50"><span class="value" id="vIntensity">50%</span></div>
+          <div class="control"><label>Tone</label><input type="range" id="tone" min="0" max="100" value="50"><span class="value" id="vTone">50%</span></div>
+          <div class="control"><label>Mix</label><input type="range" id="mix" min="0" max="100" value="100"><span class="value" id="vMix">100%</span></div>
+        </div>
+      </div>
+      <div class="card output">
+        <div class="card-header">OUTPUT</div>
+        <div class="card-body">
+          <div class="control"><label>Gain</label><input type="range" min="0" max="100" value="50"><span class="value">0 dB</span></div>
+          <div style="font-size:9px; color:var(--plugin-muted); margin-top:6px;">GR <span style="color:var(--ombic-teal); font-weight:800;">-2.1 dB</span></div>
+        </div>
+      </div>
+    </div>
+    <footer class="footer">
+      <span>Ombic Sound</span>
+      <span>v2.0.0</span>
+      <span>Stereo</span>
+    </footer>
+  </div>
+
+  <script>
+    (function() {
+      const mainView = document.getElementById('mainView');
+      const filamentGlow = document.getElementById('filamentGlow');
+      const filamentLine = document.getElementById('filamentLine');
+      const driveIn = document.getElementById('drive');
+      const intensityIn = document.getElementById('intensity');
+      const toneIn = document.getElementById('tone');
+      const mixIn = document.getElementById('mix');
+
+      function getNeon() {
+        return {
+          drive: parseInt(driveIn.value, 10) / 100,
+          intensity: parseInt(intensityIn.value, 10) / 100,
+          tone: parseInt(toneIn.value, 10) / 100,
+          mix: parseInt(mixIn.value, 10) / 100
+        };
+      }
+
+      // Tube waveform: drive = shape, tone = smooth vs wiggly
+      function tubePoints(n, t, drive, tone) {
+        const pts = [];
+        for (let i = 0; i <= n; i++) {
+          const x = i / n;
+          const low = Math.sin(2 * Math.PI * x + t * 0.7) * 0.6 + Math.sin(4 * Math.PI * x + t * 2) * 0.3;
+          const high = Math.sin(8 * Math.PI * x + t * 1.3) * 0.5 + Math.sin(16 * Math.PI * x + t * 0.9) * 0.35;
+          let y = low * (1 - tone) + high * tone;
+          const gain = 1 + drive * 5;
+          y = Math.tanh(y * gain) / Math.tanh(gain);
+          pts.push([x, 0.5 + 0.42 * y]);
+        }
+        return pts;
+      }
+
+      function pathFromPoints(pts, w, h) {
+        return pts.map((p, i) => (i === 0 ? 'M' : 'L') + (p[0] * w).toFixed(1) + ',' + (p[1] * h).toFixed(1)).join(' ');
+      }
+
+      function updateMainView() {
+        const s = getNeon();
+        // More intense: whole main view glow driven by Drive + Intensity + Mix
+        const glowStrength = (s.drive * 0.5 + s.intensity * 0.6 + s.mix * 0.5);
+        const pinkAlpha = Math.min(1, glowStrength * 0.85);
+        const redAlpha = Math.min(0.6, glowStrength * 0.5);
+        mainView.style.boxShadow = 'inset 0 0 120px rgba(232,85,144,' + pinkAlpha + '), inset 0 0 200px rgba(255,0,31,' + redAlpha + ')';
+        mainView.style.background = 'radial-gradient(ellipse 100% 100% at 50% 50%, rgba(232,85,144,' + (pinkAlpha * 0.7) + ') 0%, rgba(255,0,31,' + (redAlpha * 0.3) + ') 40%, transparent 70%), #080a12';
+      }
+
+      function updateFilament(t) {
+        const s = getNeon();
+        const w = 400, h = 104;
+        const pts = tubePoints(100, t * 0.001, s.drive, s.tone);
+        const d = pathFromPoints(pts, w, h);
+        filamentGlow.setAttribute('d', d);
+        filamentLine.setAttribute('d', d);
+        const lineOpacity = s.mix * (0.7 + s.intensity * 0.3);
+        const glowOpacity = s.mix * (0.2 + s.intensity * 0.6);
+        filamentLine.setAttribute('opacity', lineOpacity);
+        filamentGlow.setAttribute('opacity', glowOpacity);
+        filamentGlow.setAttribute('stroke-width', 16 + 36 * s.intensity);
+      }
+
+      function updateValueDisplays() {
+        document.getElementById('vDrive').textContent = driveIn.value + '%';
+        document.getElementById('vIntensity').textContent = intensityIn.value + '%';
+        document.getElementById('vTone').textContent = toneIn.value + '%';
+        document.getElementById('vMix').textContent = mixIn.value + '%';
+      }
+
+      [driveIn, intensityIn, toneIn, mixIn].forEach(inp => {
+        inp.addEventListener('input', () => {
+          updateValueDisplays();
+          updateMainView();
+        });
+      });
+      updateMainView();
+      updateValueDisplays();
+
+      let t = 0;
+      setInterval(() => {
+        t += 60;
+        updateFilament(t);
+      }, 60);
+      updateFilament(0);
+    })();
+
+    document.querySelectorAll('.pill').forEach(p => {
+      p.addEventListener('click', function() {
+        document.querySelectorAll('.pill').forEach(x => x.classList.remove('active'));
+        this.classList.add('active');
+        const isOpto = this.dataset.mode === 'opto';
+        document.querySelectorAll('.compressor .opto-only').forEach(el => el.style.display = isOpto ? '' : 'none');
+        document.querySelectorAll('.compressor .fet-only').forEach(el => el.style.display = isOpto ? 'none' : '');
+      });
+    });
+  </script>
+</body>
+</html>

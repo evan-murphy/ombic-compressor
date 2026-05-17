@@ -1,0 +1,13 @@
+{
+  "sample_rate": 48000,
+  "grid_version": "standard_20x20",
+  "level_definition": "RMS dB over measured segment; plugin uses 512-sample block RMS for steady tone",
+  "timing_step_level_db": 0.0,
+  "thd_reference_level_db": -4.0,
+  "param_ranges": {
+    "threshold_db": [
+      -30.0,
+      0.0
+    ]
+  }
+}
