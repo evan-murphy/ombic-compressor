@@ -1,1 +1,13 @@
-{"source":"UAD DBX 160 (VCA)","capture":"REAPER T/C/G sweep, one curve (T0.50_C0.50_G0.50) as representative","sample_rate":48000,"level_definition":"RMS dB per 0.5s block; compression curve from stepped segment"}
+{
+  "sample_rate": 48000,
+  "grid_version": "standard_20x20",
+  "level_definition": "RMS dB over measured segment; plugin uses 512-sample block RMS for steady tone",
+  "timing_step_level_db": 0.0,
+  "thd_reference_level_db": -4.0,
+  "param_ranges": {
+    "threshold_db": [
+      -1.0,
+      3.0
+    ]
+  }
+}
